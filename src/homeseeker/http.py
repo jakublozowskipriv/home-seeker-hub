@@ -51,9 +51,9 @@ class Http:
             time.sleep(pause)
         self._last = time.monotonic()
 
-    def get(self, url: str, **kwargs: Any) -> creq.Response:
+    def get(self, url: str, retries: int | None = None, **kwargs: Any) -> creq.Response:
         last_error: Exception | None = None
-        for attempt in range(self.retries):
+        for attempt in range(retries or self.retries):
             self._wait()
             self.requests += 1
             try:

@@ -7,7 +7,7 @@ import json
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from . import dedup
@@ -25,6 +25,7 @@ from .textparse import fold
 log = logging.getLogger(__name__)
 
 STALE_AFTER = timedelta(days=2)
+FAIRS_CHECK_EVERY = timedelta(hours=20)
 # Bump when evaluation rules change, so stored listings get re-evaluated.
 EVALUATION_VERSION = 1
 DIGEST_SIZE = 10
@@ -43,6 +44,7 @@ class RunStats:
     details_deferred: int = 0
     notified: int = 0
     events_new: int = 0
+    open_days: Counter = field(default_factory=Counter)  # upcoming open days seen, by verdict
     deactivated: int = 0
     incomplete_sources: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -97,7 +99,10 @@ def collect_open_days(
 ) -> None:
     """Create events for announced open days of a (non-rejected) listing."""
     dates = [d for d in listing.raw.get("open_days") or [] if d >= now().date().isoformat()]
-    if not dates or verdict in (None, Verdict.REJECTED.value):
+    if not dates:
+        return
+    stats.open_days[verdict or "unknown"] += len(dates)
+    if verdict in (None, Verdict.REJECTED.value):
         return
     details = listing.raw.get("open_day")
     for day in dates:
@@ -401,12 +406,17 @@ def run(
     if complete:
         stats.deactivated = store.deactivate_stale(complete, started - STALE_AFTER)
 
-    if fairs_http is not None:
+    # Fairs are announced months ahead: check the organiser's page once a day.
+    last_check = store.get_setting("fairs_checked_at")
+    if fairs_http is not None and (
+        not last_check or now() - datetime.fromisoformat(last_check) > FAIRS_CHECK_EVERY
+    ):
         known = store.event_ids()
         for event in fetch_fairs(fairs_http):
             if event["external_id"] not in known:
                 store.upsert_event(event)
                 stats.events_new += 1
+        store.set_setting("fairs_checked_at", now().isoformat())
 
     send_notifications(store, prefs, telegram, drops, stats)
     if telegram is not None:

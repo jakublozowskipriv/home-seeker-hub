@@ -76,3 +76,20 @@ def test_open_days_become_events_and_notifications(prefs, good_listing):
     stats = run(store, [source], prefs, tg)
     assert stats.events_new == 0 and source.detail_calls == 1
     assert not any("Dzień otwarty" in m[1] for m in tg.messages)
+
+
+def test_fairs_checked_once_a_day(prefs):
+    class FakeHttp:
+        calls = 0
+
+        def get(self, url, retries=None, timeout=None):
+            FakeHttp.calls += 1
+            return type("Resp", (), {"text": FAIRS_PAGE})()
+
+    engine = make_engine("sqlite://")
+    init_db(engine)
+    store = Store(engine)
+    stats = run(store, [FakeSource([])], prefs, None, fairs_http=FakeHttp())
+    assert stats.events_new == 2  # Saturday and Sunday
+    stats = run(store, [FakeSource([])], prefs, None, fairs_http=FakeHttp())
+    assert stats.events_new == 0 and FakeHttp.calls == 1
