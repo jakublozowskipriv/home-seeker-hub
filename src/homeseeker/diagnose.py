@@ -182,3 +182,70 @@ def otodom_investment() -> None:
         print("ad.location.coordinates:", dig(ad, "location", "coordinates"))
     finally:
         http.close()
+
+
+def events() -> None:
+    """Where do open days / housing fairs show up? (Otodom fields, fair organiser page)."""
+    import json
+    import re
+
+    from .cli import _key_tree
+    from .http import Http, dig
+    from .preferences import load_preferences
+    from .sources import otodom
+
+    prefs = load_preferences()
+    http = Http(delay=1.0)
+    found: list[dict] = []
+    try:
+        for page in range(1, 32):
+            data = http.get_next_data(otodom.search_url(prefs, page))
+            items = dig(data, "props", "pageProps", "data", "searchAds", "items") or []
+            if not items:
+                break
+            flats = []
+            for item in items:
+                flats.append(item)
+                flats.extend(item.get("relatedAds") or [])
+            for item in flats:
+                if item.get("openDays") or item.get("unifiedOpenDays"):
+                    found.append(item)
+        print(f"Otodom listings with open days: {len(found)}")
+        for item in found[:4]:
+            print(
+                item.get("slug"),
+                "openDays=",
+                json.dumps(item.get("openDays"), ensure_ascii=False),
+                "unifiedOpenDays=",
+                json.dumps(item.get("unifiedOpenDays"), ensure_ascii=False),
+            )
+        if found:
+            ad = (
+                dig(
+                    http.get_next_data(f"{otodom.BASE}/pl/oferta/{found[0]['slug']}"),
+                    "props",
+                    "pageProps",
+                    "ad",
+                )
+                or {}
+            )
+            print("ad.openDay:", json.dumps(ad.get("openDay"), ensure_ascii=False))
+            print(
+                "\n".join(
+                    line for line in _key_tree(ad, "ad", max_depth=4) if "open" in line.lower()
+                )
+            )
+        for url in ("https://targimieszkan.pl/", "https://targimieszkan.pl/poznan"):
+            try:
+                html = http.get(url).text
+            except Exception as e:  # diagnostic
+                print(url, "ERROR", e)
+                continue
+            text = re.sub(r"<[^>]+>", " ", html)
+            text = re.sub(r"\s+", " ", text)
+            hits = [m.group(0) for m in re.finditer(r".{0,80}Pozna[nń].{0,120}", text)][:8]
+            print(url, len(html), "bytes; Poznań mentions:")
+            for h in hits:
+                print("  ", h)
+    finally:
+        http.close()
