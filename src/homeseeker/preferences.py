@@ -51,7 +51,10 @@ class Destination(BaseModel):
 
 class Commute(BaseModel):
     max_minutes: float = 20
-    modes: list[Literal["tram", "bus"]] = Field(default_factory=lambda: ["tram"])
+    modes: list[Literal["tram", "bus"]] = Field(default_factory=lambda: ["tram", "bus"])
+    # Trams are preferred: a bus route must be this much faster to be chosen, and in the
+    # score it counts as this much longer (the hard limit uses the real time).
+    bus_penalty_minutes: float = 5
     arrive_by: str = Field("08:30", pattern=r"^\d{1,2}:\d{2}$")  # checked from -30 to +30 min
 
 

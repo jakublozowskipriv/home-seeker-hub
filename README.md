@@ -23,8 +23,10 @@ GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
   przebiegu): od drzwi do drzwi – dojście do przystanku, tramwaj (z przesiadkami), dojście
   do celu – albo pieszo, jeśli tak szybciej. Liczy się średnią z przyjazdów w ciągu godziny
   wokół ustawionej pory (domyślnie 8:00–9:00) w zwykły dzień roboczy, więc czekanie na
-  tramwaj jest wliczone. Autobusy można dołączyć w preferencjach. Gdy rozkład jest
-  niedostępny, dojazd jest szacowany z odległości (oznaczony „~”).
+  tramwaj jest wliczone. Tramwaj ma pierwszeństwo: trasa z autobusem jest wybierana tylko,
+  gdy jest szybsza o więcej niż 5 minut, a w ocenie liczy się jak o 5 minut dłuższa (limit
+  dojazdu sprawdzany jest według prawdziwego czasu). Gdy rozkład jest niedostępny, dojazd
+  jest szacowany z odległości (oznaczony „~”).
 * **Okolica**: najbliższy przystanek tramwajowy i autobusowy, najbliższy supermarket i liczba
   sklepów spożywczych do 500 m (z OpenStreetMap, odświeżane co tydzień).
 * **Działka i księga wieczysta**: dla ofert w grze aplikacja ustala działkę (usługa ULDK

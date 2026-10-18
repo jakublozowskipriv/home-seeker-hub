@@ -311,7 +311,14 @@ def area() -> None:
         started = time.monotonic()
         for label, (lat, lon) in SAMPLE_POINTS.items():
             for dest in prefs.destinations:
-                j = router.journey(lat, lon, dest.lat, dest.lon, prefs.commute.arrive_by)
+                j = router.best_journey(
+                    lat,
+                    lon,
+                    dest.lat,
+                    dest.lon,
+                    prefs.commute.arrive_by,
+                    prefs.commute.bus_penalty_minutes,
+                )
                 est = geo.estimate_commute_minutes(lat, lon, dest.lat, dest.lon)
                 print(f"  {label} -> {dest.name}: {j.minutes} min (estimate {est}) {j.legs}")
             print(

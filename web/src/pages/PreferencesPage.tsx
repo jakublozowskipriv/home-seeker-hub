@@ -122,11 +122,18 @@ export function PreferencesPage() {
                    onChange={(e) => set(["commute", "arrive_by"], e.target.value || "08:30")} />
           </label>
           <label className="toggle">
-            <input type="checkbox" checked={(p.commute?.modes ?? ["tram"]).includes("bus")}
+            <input type="checkbox" checked={(p.commute?.modes ?? ["tram", "bus"]).includes("bus")}
                    onChange={(e) => set(["commute", "modes"],
                      e.target.checked ? ["tram", "bus"] : ["tram"])} />
-            Licz też autobusy (domyślnie tylko tramwaj)
+            Licz też autobusy
           </label>
+          {(p.commute?.modes ?? ["tram", "bus"]).includes("bus") && (
+            <>
+              {num(["commute", "bus_penalty_minutes"], "Pierwszeństwo tramwaju", 1, "min")}
+              <p className="muted small">Autobus wybierany tylko, gdy jest szybszy o więcej niż
+                tyle minut; w ocenie trasa z autobusem liczy się jak o tyle dłuższa.</p>
+            </>
+          )}
           <h3>Ważne miejsca</h3>
           {dests.map((d, i) => (
             <div key={i} className="dest">
