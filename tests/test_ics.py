@@ -31,7 +31,7 @@ def test_feed_contains_events_and_viewings():
     assert ics.count("BEGIN:VEVENT") == 2
     assert "DTSTART:20261025T090000Z" in ics and "DTEND:20261025T100000Z" in ics
     unfolded = ics.replace("\r\n ", "")
-    assert "SUMMARY:🏠 Dzień otwarty: Osiedle Zielone\; budynek B" in unfolded
+    assert r"SUMMARY:🏠 Dzień otwarty: Osiedle Zielone\; budynek B" in unfolded
     assert "DESCRIPTION:Wejście od dziedzińca\\nBez zapisów" in unfolded
     assert "UID:viewing-otodom:1@home-seeker-hub" in unfolded
     assert "599 000 zł" in unfolded

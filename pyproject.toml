@@ -31,7 +31,7 @@ homeseeker = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]  # "." so tests can share fakes (tests.test_pipeline)
 
 [tool.ruff]
 line-length = 100
