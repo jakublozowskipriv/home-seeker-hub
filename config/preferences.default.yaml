@@ -48,7 +48,9 @@ destinations:
 
 commute:
   max_minutes: 20            # od drzwi do drzwi, wg rozkładu ZTM (z czekaniem na tramwaj)
-  modes: [tram]              # dopisz "bus", żeby liczyć też autobusy
+  modes: [tram, bus]         # usuń "bus", żeby liczyć tylko tramwaje
+  bus_penalty_minutes: 5     # tramwaj ma pierwszeństwo: autobus tylko, gdy szybszy o > 5 min;
+                             # w ocenie trasa z autobusem liczy się jak o 5 min dłuższa
   arrive_by: "08:30"         # dojazd na tę godzinę (średnia z przyjazdów 8:00–9:00)
 
 weights:                     # suma nie musi wynosić 100 - wynik jest normalizowany

@@ -5,13 +5,18 @@ latest moment one can leave each stop and still arrive in time. A listing's comm
 then the best of walking straight there or walking to a nearby stop. Arrival times
 across the morning are checked every two minutes and averaged, so the time spent
 waiting (on average half the interval between trams) is included.
+
+Trams are preferred: a route with a bus is taken only when it is faster than the best
+tram (or walking) route by more than a penalty of a few minutes.
 """
 
 from __future__ import annotations
 
+import bisect
 import csv
 import hashlib
 import io
+import itertools
 import logging
 import zipfile
 from collections.abc import Iterator
@@ -194,6 +199,10 @@ class Journey:
     minutes: float
     legs: list[dict]  # {"mode": "walk", "minutes": 4} / {"mode": "tram", "line", "from", "to"}
 
+    @property
+    def uses_bus(self) -> bool:
+        return any(leg["mode"] == "bus" for leg in self.legs)
+
 
 @dataclass
 class _Profile:
@@ -215,8 +224,21 @@ class Router:
                 for j, _ in self.index.near(s.lat, s.lon, TRANSFER_M)
                 if j != i and j in self.served
             ]
-        self._backwards = sorted(feed.connections, key=lambda c: c[0], reverse=True)
-        self._profiles: dict[tuple[float, float, int], _Profile] = {}
+        self.modes = frozenset(feed.trip_modes)
+        self._backwards: dict[frozenset[str], list[tuple[int, int, int, int, int]]] = {}
+        self._minus_dep: dict[frozenset[str], list[int]] = {}  # for bisecting the above
+        self._profiles: dict[tuple, _Profile] = {}
+
+    def _connections(self, modes: frozenset[str]) -> list[tuple[int, int, int, int, int]]:
+        """Connections of the given modes, latest departure first."""
+        if modes not in self._backwards:
+            self._backwards[modes] = sorted(
+                (c for c in self.feed.connections if self.feed.trip_modes[c[4]] in modes),
+                key=lambda c: c[0],
+                reverse=True,
+            )
+            self._minus_dep[modes] = [-c[0] for c in self._backwards[modes]]
+        return self._backwards[modes]
 
     def _walk_near(self, lat: float, lon: float) -> list[tuple[int, float]]:
         return [
@@ -225,8 +247,8 @@ class Router:
             if i in self.served
         ]
 
-    def _profile(self, lat: float, lon: float, arrive_at: int) -> _Profile:
-        key = (lat, lon, arrive_at)
+    def _profile(self, lat: float, lon: float, arrive_at: int, modes: frozenset[str]) -> _Profile:
+        key = (lat, lon, arrive_at, modes)
         if key in self._profiles:
             return self._profiles[key]
         n = len(self.feed.stops)
@@ -235,7 +257,9 @@ class Router:
         for i, secs in self._walk_near(lat, lon):
             latest[i], via[i] = arrive_at - secs, ("end", secs)
         exits: dict[int, int] = {}  # trip -> stop to get off at
-        for dep, arr, a, b, trip in self._backwards:
+        connections = self._connections(modes)
+        start = bisect.bisect_left(self._minus_dep[modes], -arrive_at)  # skip later ones
+        for dep, arr, a, b, trip in itertools.islice(connections, start, None):
             if dep < arrive_at - MAX_JOURNEY_S:
                 break
             if arr > arrive_at:
@@ -296,9 +320,34 @@ class Router:
             out.append(leg)
         return out
 
-    def journey(
-        self, lat: float, lon: float, dest_lat: float, dest_lon: float, arrive_by: str = "08:30"
+    def best_journey(
+        self,
+        lat: float,
+        lon: float,
+        dest_lat: float,
+        dest_lon: float,
+        arrive_by: str = "08:30",
+        bus_penalty_min: float = 5,
     ) -> Journey:
+        """The tram route, unless a bus saves more than the penalty."""
+        if "tram" not in self.modes or self.modes == {"tram"}:
+            return self.journey(lat, lon, dest_lat, dest_lon, arrive_by)
+        tram = self.journey(lat, lon, dest_lat, dest_lon, arrive_by, frozenset({"tram"}))
+        any_mode = self.journey(lat, lon, dest_lat, dest_lon, arrive_by)
+        if any_mode.uses_bus and any_mode.minutes + bus_penalty_min >= tram.minutes:
+            return tram
+        return any_mode
+
+    def journey(
+        self,
+        lat: float,
+        lon: float,
+        dest_lat: float,
+        dest_lon: float,
+        arrive_by: str = "08:30",
+        modes: frozenset[str] | None = None,
+    ) -> Journey:
+        modes = modes or self.modes
         h, m = (int(x) for x in arrive_by.split(":"))
         centre = h * 3600 + m * 60
         span = SAMPLE_SPAN_MIN * 60
@@ -307,7 +356,7 @@ class Router:
         access = self._walk_near(lat, lon)
         results = []
         for t in times:
-            profile = self._profile(dest_lat, dest_lon, t)
+            profile = self._profile(dest_lat, dest_lon, t, modes)
             best_leave, best = t - direct, None
             for i, secs in access:
                 if profile.latest[i] - secs > best_leave:

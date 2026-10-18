@@ -111,11 +111,17 @@ class Area:
         return f"transit:{transit}|shops:{self.shops_version}"
 
     def journey(
-        self, lat: float, lon: float, dest_lat: float, dest_lon: float, arrive_by: str
+        self,
+        lat: float,
+        lon: float,
+        dest_lat: float,
+        dest_lon: float,
+        arrive_by: str,
+        bus_penalty_min: float = 5,
     ) -> Journey | None:
         if self.router is None:
             return None
-        return self.router.journey(lat, lon, dest_lat, dest_lon, arrive_by)
+        return self.router.best_journey(lat, lon, dest_lat, dest_lon, arrive_by, bus_penalty_min)
 
     def nearby(self, lat: float, lon: float) -> dict[str, Any]:
         out: dict[str, Any] = {}

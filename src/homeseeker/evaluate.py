@@ -128,7 +128,14 @@ def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> 
     if listing.has_coords and not listing.coords_approximate:
         for dest in prefs.destinations:
             journey = (
-                area.journey(listing.lat, listing.lon, dest.lat, dest.lon, prefs.commute.arrive_by)
+                area.journey(
+                    listing.lat,
+                    listing.lon,
+                    dest.lat,
+                    dest.lon,
+                    prefs.commute.arrive_by,
+                    prefs.commute.bus_penalty_minutes,
+                )
                 if area
                 else None
             )
@@ -151,7 +158,17 @@ def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> 
     elif listing.coords_approximate:
         warnings.append("przybliżona lokalizacja")
 
-    score = _score(listing, prefs, category, commute, COMMUTE_TOLERANCE[method], nearby)
+    # For the score a bus ride counts as a few minutes longer: trams are preferred.
+    perceived = {
+        name: minutes
+        + (
+            prefs.commute.bus_penalty_minutes
+            if any(leg["mode"] == "bus" for leg in routes.get(name, ()))
+            else 0
+        )
+        for name, minutes in commute.items()
+    }
+    score = _score(listing, prefs, category, perceived, COMMUTE_TOLERANCE[method], nearby)
 
     if rejections:
         verdict = Verdict.REJECTED

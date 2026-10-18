@@ -94,9 +94,21 @@ def test_bus_ignored_unless_enabled(router):
     # stop X is next to A: only the tram counts, the bus stop is still reported nearby
     assert router.journey(52.3881, 16.9343, *DEST).legs[1]["line"] == "2"
     assert router.nearest_stop(52.3881, 16.9343, "bus")[0] == "Pętla autobusowa"
+
+
+def test_tram_preferred_unless_bus_is_clearly_faster():
     with_bus = Router(parse_feed(build_feed(), {"tram", "bus"}, today=date(2026, 10, 18)))
-    legs = with_bus.journey(52.3881, 16.9343, *DEST).legs
-    assert [leg["line"] for leg in legs if leg["mode"] != "walk"] == ["170"]
+
+    def lines(journey):
+        return [leg["line"] for leg in journey.legs if leg["mode"] != "walk"]
+
+    fastest = with_bus.journey(52.3881, 16.9343, *DEST)
+    tram = with_bus.journey(52.3881, 16.9343, *DEST, modes=frozenset({"tram"}))
+    assert lines(fastest) == ["170"] and lines(tram) == ["2"]
+    saving = tram.minutes - fastest.minutes
+    assert 0 < saving < 5
+    assert lines(with_bus.best_journey(52.3881, 16.9343, *DEST, bus_penalty_min=5)) == ["2"]
+    assert lines(with_bus.best_journey(52.3881, 16.9343, *DEST, bus_penalty_min=0)) == ["170"]
 
 
 def test_evaluation_uses_timetable(router, prefs, good_listing):
@@ -111,6 +123,20 @@ def test_evaluation_uses_timetable(router, prefs, good_listing):
     assert ev.land_register == "PO1P/00123456/7"
     estimated = evaluate(good_listing, prefs)
     assert estimated.commute_method == "estimate" and estimated.commute_routes == {}
+
+
+def test_bus_route_scores_lower(prefs, good_listing):
+    with_bus = Router(parse_feed(build_feed(), {"tram", "bus"}, today=date(2026, 10, 18)))
+    area = Area(with_bus)
+    good_listing.lat, good_listing.lon = 52.3881, 16.9343
+    prefs.commute.bus_penalty_minutes = 0
+    by_bus = evaluate(good_listing, prefs, area)
+    assert any(leg["mode"] == "bus" for leg in by_bus.commute_routes["Stary Rynek"])
+    prefs.commute.bus_penalty_minutes = 3  # still the bus (it saves ~4 min), but scored lower
+    penalised = evaluate(good_listing, prefs, area)
+    assert penalised.commute_routes == by_bus.commute_routes
+    assert penalised.commute == by_bus.commute  # the hard limit uses the real time
+    assert penalised.score < by_bus.score
 
 
 def test_parse_parcel_and_shops():
