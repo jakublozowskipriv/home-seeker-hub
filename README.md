@@ -76,6 +76,39 @@ Przez ten czas bot milczy, a na koniec wysyła podsumowanie z 10 najlepszymi ofe
 Bez `DATABASE_URL` workflow działa w trybie podglądu (`--dry-run`): nic nie zapisuje ani nie
 wysyła, tylko pokazuje raport.
 
+## Aplikacja webowa (iPhone / każdy telefon)
+
+Strona na GitHub Pages: `https://<twoj-login>.github.io/home-seeker-hub/`. Lista ofert
+z filtrami, szczegóły ze zdjęciami, mapą i historią ceny, statusy (interesujące,
+oglądanie, …), 👍/👎 i komentarze, mapa wszystkich ofert, edycja preferencji i lista osób
+z dostępem. Na iPhonie: Safari → Udostępnij → **Do ekranu początkowego**.
+
+Dostęp mają tylko osoby z listy (zakładka **Dostęp**) – pilnują tego reguły bezpieczeństwa
+(RLS) w bazie, więc sam link nic nie daje. Ty (właściciel) zmieniasz preferencje,
+statusy i listę osób; pozostali przeglądają, reagują i komentują.
+
+### Konfiguracja (jednorazowo)
+
+1. **GitHub → Settings → Pages → Source: GitHub Actions.**
+2. **Supabase → Project Settings → API**: skopiuj *Project URL* i klucz *anon* /
+   *publishable*. W GitHubie **Settings → Secrets and variables → Actions → zakładka
+   Variables** dodaj `SUPABASE_URL` i `SUPABASE_ANON_KEY` (to wartości publiczne –
+   zmienne, nie sekrety).
+3. **Sekret `OWNER_EMAIL`** – Twój e-mail; przy najbliższym przebiegu scrapera staniesz się
+   właścicielem aplikacji.
+4. **Supabase → Authentication → URL Configuration → Site URL**: adres strony z GitHub Pages.
+5. **Własny SMTP** (wymagany, żeby edytować szablon maila i żeby kody docierały do innych
+   osób – wbudowana poczta Supabase wysyła tylko do członków zespołu projektu):
+   **Authentication → Emails → Set up SMTP** – np. Gmail: host `smtp.gmail.com`, port 465,
+   login = Twój Gmail, hasło = [hasło aplikacji](https://myaccount.google.com/apppasswords).
+6. **Szablon „Magic link or OTP”** (zakładka Source): dopisz
+   `<p>Twój kod logowania: <strong>{{ .Token }}</strong></p>`. Na iPhonie logujemy się
+   kodem, bo link z maila otworzyłby się w Safari, a nie w aplikacji z ekranu początkowego.
+
+Po zmianach w `web/` strona wdraża się sama (workflow **Deploy web app**). Lokalnie:
+`cd web && npm install && npm run dev` – bez zmiennych Supabase działa tryb demo
+z przykładowymi danymi.
+
 ## Preferencje
 
 Domyślne preferencje są w [`config/preferences.default.yaml`](config/preferences.default.yaml).
@@ -107,7 +140,8 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
 ## Plan
 
 - [x] Etap 0–1: scrapery Otodom + OLX, ocena i scoring, deduplikacja, historia cen, Telegram
-- [ ] Etap 2: webapp (PWA na iPhone'a): lista, filtry, mapa, statusy, notatki, edycja preferencji
+- [x] Etap 2: webapp (PWA na iPhone'a): lista, filtry, mapa, statusy, reakcje, komentarze,
+      edycja preferencji, dostęp dla rodziny
 - [ ] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
 - [ ] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
 - [ ] Etap 5: kalkulator kredytu, czerwone flagi (LLM), porównywarka, checklista oglądania

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date
 from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
+
+log = logging.getLogger(__name__)
 
 DEFAULT_FILE = Path(__file__).resolve().parents[2] / "config" / "preferences.default.yaml"
 
@@ -92,9 +95,16 @@ def parse_preferences(text: str) -> Preferences:
 
 
 def load_preferences(stored: dict | None = None) -> Preferences:
-    """Resolve preferences: stored in DB > HOMESEEKER_PREFERENCES > file > default file."""
+    """Resolve preferences: stored in DB > HOMESEEKER_PREFERENCES > file > default file.
+
+    Invalid preferences saved from the web app fall back to the defaults (logged) rather
+    than stopping the scraper.
+    """
     if stored:
-        return Preferences.model_validate(stored)
+        try:
+            return Preferences.model_validate(stored)
+        except ValidationError as e:
+            log.error("Stored preferences are invalid, using defaults: %s", e)
     if text := os.environ.get("HOMESEEKER_PREFERENCES"):
         return parse_preferences(text)
     path = Path(os.environ.get("HOMESEEKER_PREFERENCES_FILE") or DEFAULT_FILE)
