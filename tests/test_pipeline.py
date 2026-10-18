@@ -125,3 +125,15 @@ def test_probe_key_tree_redacts_personal_data():
     lines = _key_tree({"owner": {"name": "Jan", "phone": "+48123"}, "price": 1})
     assert "owner = <redacted>" in lines
     assert not any("Jan" in line or "+48" in line for line in lines)
+
+
+def test_placeholder_coordinates_are_treated_as_approximate(store, prefs, good_listing):
+    from homeseeker.db import row_to_listing
+
+    other = copy.deepcopy(good_listing)
+    other.source_id, other.area, other.location_text = "2", 41.0, "Poznań, Rataje, ul. Inna"
+    run(store, [FakeSource([good_listing, other])], prefs, None)
+    for listing_id in ("test:1", "test:2"):
+        row = store.get(listing_id)
+        assert row_to_listing(row).coords_approximate is True
+        assert row.evaluation["commute"] == {}

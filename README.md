@@ -62,6 +62,11 @@ Workflow **Scrape listings** uruchamia się sam co 3 godziny (harmonogram dział
 domyślnej `main`). Można go też odpalić ręcznie: **Actions → Scrape listings → Run workflow**.
 Raport z każdego przebiegu jest widoczny w podsumowaniu joba.
 
+**Pierwsze indeksowanie**: w Poznaniu jest ok. 2000 pasujących wstępnie ofert, a każda
+wymaga pobrania strony szczegółów. Najszybciej: **Run workflow** z `max_details` = `2000`
+(trwa ok. godziny). Bez tego zaindeksuje się samo w ciągu ok. doby (150 ofert na przebieg).
+Przez ten czas bot milczy, a na koniec wysyła podsumowanie z 10 najlepszymi ofertami.
+
 Bez `DATABASE_URL` workflow działa w trybie podglądu (`--dry-run`): nic nie zapisuje ani nie
 wysyła, tylko pokazuje raport.
 
@@ -86,6 +91,10 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
 
 * Portale zabraniają w regulaminach automatycznego pobierania danych. Aplikacja jest do
   użytku prywatnego, robi niewiele zapytań i z przerwami – mimo to portal może je blokować.
+* Otodom i OLX odrzucają zapytania od klientów, które nie wyglądają jak przeglądarka,
+  dlatego zapytania idą przez `curl_cffi` (odcisk TLS Chrome'a).
+* Część ofert (zwłaszcza deweloperskich) ma tylko przybliżoną lokalizację – wtedy dojazd
+  nie jest liczony, a ocena opiera się na dzielnicy.
 * Workflow **Smoke test** uruchamia scrapery na żywo (bez zapisu) przy zmianach w kodzie,
   żeby szybko wychwycić zmiany w strukturze stron.
 

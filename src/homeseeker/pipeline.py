@@ -17,6 +17,7 @@ from .notify.format import listing_html, money
 from .notify.telegram import Telegram, TelegramError
 from .preferences import Preferences
 from .sources.base import Source
+from .textparse import fold
 
 log = logging.getLogger(__name__)
 
@@ -125,6 +126,9 @@ def process_source(
                 else:
                     stats.details_deferred += 1
 
+        if listing.has_coords and not listing.coords_approximate:
+            _detect_placeholder_coords(listing, store, prefs)
+
         ev = evaluate(listing, prefs)
         group = None
         if ev.verdict != Verdict.REJECTED:
@@ -154,6 +158,23 @@ def process_source(
         stats.incomplete_sources.append(source.name)
     stats.errors += [f"{source.name}: {e}" for e in source.errors]
     return drops
+
+
+def _detect_placeholder_coords(listing: Listing, store: Store, prefs: Preferences) -> None:
+    """Portals put listings without an exact address on a placeholder point (e.g. the city
+    centre). Different addresses sharing identical coordinates means the point is fake."""
+    others = [
+        r for r in store.same_point(listing) if fold(r.location_text) != fold(listing.location_text)
+    ]
+    if not others:
+        return
+    listing.coords_approximate = True
+    for row in others:
+        if row.coords_approximate:
+            continue
+        other = row_to_listing(row)
+        other.coords_approximate = True
+        store.upsert(other, evaluate(other, prefs), row.group_id)
 
 
 def _evaluation_from_row(row: Any) -> Evaluation:

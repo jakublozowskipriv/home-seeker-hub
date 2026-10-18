@@ -274,6 +274,19 @@ class Store:
                 .order_by(listings.c.score.desc())
             ).fetchall()
 
+    def same_point(self, listing: Listing, tolerance: float = 1e-5) -> list[Any]:
+        """Other listings placed at exactly the same coordinates."""
+        if not listing.has_coords:
+            return []
+        with self.engine.connect() as conn:
+            return conn.execute(
+                select(listings).where(
+                    listings.c.id != listing.id,
+                    listings.c.lat.between(listing.lat - tolerance, listing.lat + tolerance),
+                    listings.c.lon.between(listing.lon - tolerance, listing.lon + tolerance),
+                )
+            ).fetchall()
+
     def mark_notified(self, listing_id: str, price: float | None) -> None:
         with self.engine.begin() as conn:
             conn.execute(
