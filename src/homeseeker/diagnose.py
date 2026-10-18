@@ -266,7 +266,7 @@ def area() -> None:
     import zipfile
 
     from . import geo
-    from .area import GROCERY, OVERPASS_URL, POZNAN_BBOX, SHOPS_QUERY, ULDK_URL, parse_shops
+    from .area import ULDK_URL, fetch_shops
     from .http import Http
     from .preferences import load_preferences
     from .transit import FEED_URL, Router, parse_feed
@@ -324,9 +324,9 @@ def area() -> None:
         print("GTFS ERROR", type(e).__name__, e)
 
     try:
-        s, w, n, e = POZNAN_BBOX
-        query = SHOPS_QUERY.format(kinds=GROCERY, s=s, w=w, n=n, e=e)
-        shops = parse_shops(http.get_json(OVERPASS_URL, params={"data": query}, retries=2))
+        started = time.monotonic()
+        shops = fetch_shops()
+        print(f"Overpass took {time.monotonic() - started:.1f}s")
         kinds: dict[str, int] = {}
         for shop in shops:
             kinds[shop[2]] = kinds.get(shop[2], 0) + 1

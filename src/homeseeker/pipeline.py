@@ -171,7 +171,7 @@ def process_source(
             listing = merged
 
         if not listing.details_fetched and not source.complete_search_results:
-            pre = evaluate(listing, prefs)  # hard filters only, no need for routing
+            pre = evaluate(listing, prefs, area)
             if pre.verdict != Verdict.REJECTED:
                 if details_budget > 0:
                     details_budget -= 1

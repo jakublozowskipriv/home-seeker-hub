@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { Listing, ListingStatus, Member, Reaction } from "../api/types";
 import {
-  commuteEntries, headline, initials, money, personName, reactionSummary, scoreClass,
+  commuteEntries, headline, initials, isEstimate, money, personName, reactionSummary, scoreClass,
   shortDestination, sourceName, STATUS_LABELS,
 } from "../format";
 
@@ -59,7 +59,9 @@ export function ListingCard({ listing: l, duplicates, status, reactions, comment
           {l.verdict === "negotiable" && <span className="chip warn">do negocjacji</span>}
           {l.market === "primary" && <span className="chip">pierwotny</span>}
           {commuteEntries(l).map(([name, min]) => (
-            <span key={name} className="chip">🚋 {Math.round(min)} min {shortDestination(name)}</span>
+            <span key={name} className="chip">
+              🚋 {isEstimate(l) ? "~" : ""}{Math.round(min)} min {shortDestination(name)}
+            </span>
           ))}
         </div>
         <div className="row between small">

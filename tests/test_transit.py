@@ -147,6 +147,6 @@ def test_message_shows_lines_and_shops(router, prefs, good_listing):
     shops = [[52.4097, 16.9110, "supermarket", "Biedronka"]]
     good_listing.lat, good_listing.lon = 52.3880, 16.9342
     html = listing_html(good_listing, evaluate(good_listing, prefs, Area(router, shops, "x")))
-    assert "min Stary Rynek (2)" in html
+    assert "min Stary Rynek (linia 2)" in html
     assert "🚏 Dębiec" in html and "szacunek" not in html
     assert "szacunek" in listing_html(good_listing, evaluate(good_listing, prefs))

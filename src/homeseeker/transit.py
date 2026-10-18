@@ -162,6 +162,8 @@ def parse_feed(data: bytes, modes: set[str], today: date | None = None) -> Feed:
             stops[stop].modes.add(mode)
             if mode not in modes or trip[1] not in active:
                 continue
+            if not (st.get("arrival_time") or st.get("departure_time")):
+                continue  # not a timed stop
             idx = trip_index.get(st["trip_id"])
             if idx is None:
                 idx = trip_index[st["trip_id"]] = len(trip_lines)

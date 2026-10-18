@@ -20,7 +20,7 @@ function setPath(obj: Prefs, path: Path, value: unknown): Prefs {
 
 const WEIGHT_LABELS: Record<string, string> = {
   location: "Lokalizacja", commute: "Dojazd", floor: "Piętro", build_year: "Rok budowy",
-  price: "Cena", elevator: "Winda", area: "Metraż", rooms: "Pokoje",
+  price: "Cena", elevator: "Winda", area: "Metraż", rooms: "Pokoje", nearby: "Okolica",
 };
 
 export function PreferencesPage() {
@@ -116,7 +116,17 @@ export function PreferencesPage() {
           {list(["locations", "preferred"], "Ulubione dzielnice (bonus)")}
           {list(["locations", "allowed"], "Dopuszczalne dzielnice")}
           {list(["locations", "excluded"], "Wykluczone (krańce)")}
-          {num(["commute", "max_minutes"], "Maks. dojazd (tramwaj + pieszo)", 1, "min")}
+          {num(["commute", "max_minutes"], "Maks. dojazd (od drzwi do drzwi)", 1, "min")}
+          <label className="field">Na którą godzinę (dzień roboczy)
+            <input type="time" value={p.commute?.arrive_by ?? "08:30"}
+                   onChange={(e) => set(["commute", "arrive_by"], e.target.value || "08:30")} />
+          </label>
+          <label className="toggle">
+            <input type="checkbox" checked={(p.commute?.modes ?? ["tram"]).includes("bus")}
+                   onChange={(e) => set(["commute", "modes"],
+                     e.target.checked ? ["tram", "bus"] : ["tram"])} />
+            Licz też autobusy (domyślnie tylko tramwaj)
+          </label>
           <h3>Ważne miejsca</h3>
           {dests.map((d, i) => (
             <div key={i} className="dest">

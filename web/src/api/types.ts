@@ -13,6 +13,35 @@ export interface Evaluation {
   location_category: string | null;
   location_name: string | null;
   commute: Record<string, number>;
+  commute_method?: "timetable" | "estimate" | null;
+  /** Door-to-door legs per destination (timetable only). */
+  commute_routes?: Record<string, Leg[]>;
+  nearby?: Nearby;
+  /** Land register (księga wieczysta) number found in the description. */
+  land_register?: string | null;
+}
+
+export type Leg =
+  | { mode: "walk"; minutes: number }
+  | { mode: "tram" | "bus"; line: string; from: string; to: string };
+
+export interface Place {
+  name: string;
+  m: number;
+}
+
+export interface Nearby {
+  tram_stop?: Place;
+  bus_stop?: Place;
+  supermarket?: Place;
+  shops_500m?: number;
+}
+
+/** Cadastral parcel at the listing's point (listing.raw.parcel). */
+export interface Parcel {
+  id: string;
+  region: string;
+  number: string;
 }
 
 /** A listing as stored by the scraper (`listings` table). */

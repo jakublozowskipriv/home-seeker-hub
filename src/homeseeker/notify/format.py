@@ -55,9 +55,11 @@ def facts(listing) -> list[str]:
 
 
 def route_lines(legs: list[dict]) -> str:
-    """'2 → 5' for a ride with a change; 'pieszo' when walking is quickest."""
+    """'linia 2', 'linie 5 → 2' (with a change), or 'pieszo' when walking is quickest."""
     rides = [leg["line"] for leg in legs if leg.get("mode") != "walk"]
-    return " → ".join(rides) if rides else "pieszo"
+    if not rides:
+        return "pieszo"
+    return ("linia " if len(rides) == 1 else "linie ") + " → ".join(rides)
 
 
 def commute_text(ev: Evaluation) -> str:

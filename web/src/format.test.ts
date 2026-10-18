@@ -3,8 +3,8 @@ import { projectUrl } from "./api";
 import { errorMessage } from "./api/supabase";
 import type { Listing, ListingStatus } from "./api/types";
 import {
-  applyFilters, DEFAULT_FILTERS, floorText, groupDuplicates, money, relativeTime,
-  shortDestination,
+  applyFilters, DEFAULT_FILTERS, distance, floorText, geoportalUrl, groupDuplicates, legText,
+  money, relativeTime, routeLines, shortDestination,
 } from "./format";
 
 function listing(id: string, over: Partial<Listing> = {}): Listing {
@@ -82,5 +82,21 @@ describe("errorMessage", () => {
     expect(errorMessage('new row violates row-level security policy for table "members"'))
       .toBe("Brak uprawnień do tej operacji.");
     expect(errorMessage("duplicate key value violates unique constraint")).toContain("już istnieje");
+  });
+});
+
+describe("commute and surroundings", () => {
+  it("lists the lines of a route", () => {
+    expect(routeLines([{ mode: "walk", minutes: 3 },
+      { mode: "tram", line: "5", from: "A", to: "B" },
+      { mode: "tram", line: "2", from: "B", to: "C" }])).toBe("linie 5 → 2");
+    expect(routeLines([{ mode: "walk", minutes: 9 }])).toBe("pieszo");
+    expect(legText({ mode: "bus", line: "170", from: "A", to: "B" })).toBe("🚌 170: A → B");
+  });
+  it("formats distances and links the parcel", () => {
+    expect(distance(347)).toBe("350 m");
+    expect(distance(1260)).toBe("1,3 km");
+    expect(geoportalUrl({ id: "306401_1.0021.AR_12.45/3", region: "Jeżyce", number: "45/3" }))
+      .toBe("https://mapy.geoportal.gov.pl/imapnext/imap/?identifyParcel=306401_1.0021.AR_12.45%2F3");
   });
 });

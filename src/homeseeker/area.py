@@ -8,6 +8,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+import httpx
+
 from . import geo
 from .db import Store, now
 from .http import FetchError, Http
@@ -15,7 +17,12 @@ from .transit import FEED_URL, Journey, Router, parse_feed
 
 log = logging.getLogger(__name__)
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Overpass rejects browser-like clients (HTTP 406): plain client that says who it is.
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+]
+OVERPASS_AGENT = "home-seeker-hub/1.0 (+https://github.com/jakublozowskipriv/home-seeker-hub)"
 POZNAN_BBOX = (52.29, 16.73, 52.52, 17.08)  # south, west, north, east
 GROCERY = "supermarket|convenience|greengrocer|bakery|butcher"
 SHOPS_QUERY = '[out:json][timeout:90];nwr["shop"~"^({kinds})$"]({s},{w},{n},{e});out center tags;'
@@ -38,6 +45,21 @@ def parse_shops(data: dict) -> list[list]:
     return out
 
 
+def fetch_shops() -> list[list]:
+    s, w, n, e = POZNAN_BBOX
+    query = SHOPS_QUERY.format(kinds=GROCERY, s=s, w=w, n=n, e=e)
+    errors = []
+    with httpx.Client(timeout=120, headers={"User-Agent": OVERPASS_AGENT}) as client:
+        for url in OVERPASS_URLS:
+            try:
+                resp = client.post(url, data={"data": query})
+                resp.raise_for_status()
+                return parse_shops(resp.json())
+            except (httpx.HTTPError, ValueError) as err:
+                errors.append(f"{httpx.URL(url).host}: {err}")
+    raise FetchError("; ".join(errors))
+
+
 def load_shops(store: Store, http: Http | None) -> tuple[list[list], str | None]:
     """Grocery shops in Poznań from OpenStreetMap, cached in the database for a week."""
     cached = store.get_setting("shops") or {}
@@ -45,11 +67,9 @@ def load_shops(store: Store, http: Http | None) -> tuple[list[list], str | None]
     if http is not None and (
         not fetched or now() - datetime.fromisoformat(fetched) > SHOPS_REFRESH
     ):
-        s, w, n, e = POZNAN_BBOX
-        query = SHOPS_QUERY.format(kinds=GROCERY, s=s, w=w, n=n, e=e)
         try:
-            items = parse_shops(http.get_json(OVERPASS_URL, params={"data": query}, retries=2))
-        except (FetchError, ValueError) as err:
+            items = fetch_shops()
+        except FetchError as err:
             log.warning("Shops (OpenStreetMap) not refreshed: %s", err)
         else:
             if items:
