@@ -1,0 +1,67 @@
+import { describe, expect, it } from "vitest";
+import type { Listing, ListingStatus } from "./api/types";
+import {
+  applyFilters, DEFAULT_FILTERS, floorText, groupDuplicates, money, relativeTime,
+  shortDestination,
+} from "./format";
+
+function listing(id: string, over: Partial<Listing> = {}): Listing {
+  return {
+    id, source: "otodom", url: "", title: "", price: 500_000, area: 45, price_per_m2: 11_000,
+    rooms: 2, floor: 3, floors_total: 5, build_year: 2018, market: "secondary",
+    has_balcony: true, has_elevator: true, heating: "district", ownership: "full",
+    completion_date: null, district: "Wilda", location_text: "Poznań, Wilda", lat: 52.4,
+    lon: 16.9, coords_approximate: false, images: [], is_private_owner: false, agency: null,
+    published_at: null, verdict: "match", score: 70, evaluation: null, group_id: null,
+    first_seen_at: "2026-10-18T10:00:00Z", last_seen_at: "2026-10-18T10:00:00Z", active: true,
+    ...over,
+  };
+}
+
+describe("format", () => {
+  it("formats money and floors in Polish", () => {
+    expect(money(599000).replace(/\s/g, " ")).toBe("599 000 zł");
+    expect(money(null)).toBe("cena ?");
+    expect(floorText(0, null)).toBe("parter");
+    expect(floorText(4, 6)).toBe("4. piętro z 6");
+    expect(shortDestination("Praca (Nowy Rynek D)")).toBe("Praca");
+  });
+
+  it("describes relative time", () => {
+    const now = Date.parse("2026-10-18T12:00:00Z");
+    expect(relativeTime("2026-10-18T11:30:00Z", now)).toBe("30 min temu");
+    expect(relativeTime("2026-10-17T11:00:00Z", now)).toBe("wczoraj");
+    expect(relativeTime(null, now)).toBe("nigdy");
+  });
+
+  it("collapses duplicates into the best-scored listing", () => {
+    const groups = groupDuplicates([
+      listing("a", { group_id: "g", score: 60 }),
+      listing("b", { group_id: "g", score: 80, source: "olx" }),
+      listing("c"),
+    ]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].listing.id).toBe("b");
+    expect(groups[0].duplicates.map((d) => d.id)).toEqual(["a"]);
+  });
+
+  it("filters by verdict, status and novelty and sorts", () => {
+    const items = groupDuplicates([
+      listing("a", { score: 60, price: 700_000 }),
+      listing("b", { score: 90, price: 600_000, first_seen_at: "2026-10-19T00:00:00Z" }),
+      listing("c", { verdict: "review" }),
+      listing("d", { score: 95 }),
+    ]);
+    const statuses = new Map<string, ListingStatus>([
+      ["d", { listing_id: "d", status: "rejected", note: null, viewing_at: null,
+        updated_by: null, updated_at: "" }],
+    ]);
+    const ids = (f = DEFAULT_FILTERS) =>
+      applyFilters(items, f, statuses, "2026-10-18T12:00:00Z").map((g) => g.listing.id);
+    expect(ids()).toEqual(["b", "a"]); // rejected by me is hidden, review filtered out
+    expect(ids({ ...DEFAULT_FILTERS, sort: "price" })).toEqual(["b", "a"]);
+    expect(ids({ ...DEFAULT_FILTERS, onlyNew: true })).toEqual(["b"]);
+    expect(ids({ ...DEFAULT_FILTERS, status: "rejected" })).toEqual(["d"]);
+    expect(ids({ ...DEFAULT_FILTERS, verdict: "all", query: "wilda" })).toHaveLength(3);
+  });
+});

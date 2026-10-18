@@ -8,3 +8,6 @@ __pycache__/
 *.sqlite
 debug/
 .env
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
