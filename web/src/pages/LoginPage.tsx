@@ -40,8 +40,9 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
             void run(async () => { await api.verifyCode(email, code); onSignedIn(); });
           }}>
             <p className="muted">
-              Wpisz kod z maila wysłanego na <b>{email}</b>. Na iPhonie wpisz go tutaj, w
-              aplikacji – link z maila otworzyłby się w Safari.
+              Wpisz kod z maila wysłanego na <b>{email}</b> albo kliknij link w mailu
+              (działa w tej samej przeglądarce). W aplikacji na ekranie początkowym iPhone'a
+              użyj kodu – link otworzyłby się w Safari.
             </p>
             <input inputMode="numeric" autoComplete="one-time-code" placeholder="123456"
                    value={code} onChange={(e) => setCode(e.target.value)} required />

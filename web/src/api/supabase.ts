@@ -23,7 +23,12 @@ export class SupabaseApi implements Api {
   private db: SupabaseClient;
 
   constructor(url: string, key: string) {
-    this.db = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
+    // PKCE: the e-mail link returns with ?code=… (a query parameter), which does not clash
+    // with the app's #/hash routes; supabase-js exchanges it for a session on start.
+    this.db = createClient(url, key, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true,
+              flowType: "pkce" },
+    });
   }
 
   private async email(): Promise<string> {

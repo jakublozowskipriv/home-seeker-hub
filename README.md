@@ -97,13 +97,13 @@ statusy i listę osób; pozostali przeglądają, reagują i komentują.
 3. **Sekret `OWNER_EMAIL`** – Twój e-mail; przy najbliższym przebiegu scrapera staniesz się
    właścicielem aplikacji.
 4. **Supabase → Authentication → URL Configuration → Site URL**: adres strony z GitHub Pages.
-5. **Supabase → Authentication → Emails → Magic Link**: dopisz do treści `{{ .Token }}`,
-   żeby mail zawierał 6-cyfrowy kod. Na iPhonie logujemy się kodem, bo link otworzyłby się
-   w Safari, a nie w aplikacji z ekranu początkowego.
-6. **Inne osoby**: wbudowana poczta Supabase wysyła tylko na adresy członków zespołu
-   projektu. Żeby kod dotarł np. do mamy, ustaw własny SMTP: **Authentication → Emails →
-   SMTP Settings** – np. Gmail (`smtp.gmail.com`, port 465, login = Twój Gmail, hasło =
-   [hasło aplikacji](https://myaccount.google.com/apppasswords)).
+5. **Własny SMTP** (wymagany, żeby edytować szablon maila i żeby kody docierały do innych
+   osób – wbudowana poczta Supabase wysyła tylko do członków zespołu projektu):
+   **Authentication → Emails → Set up SMTP** – np. Gmail: host `smtp.gmail.com`, port 465,
+   login = Twój Gmail, hasło = [hasło aplikacji](https://myaccount.google.com/apppasswords).
+6. **Szablon „Magic link or OTP”** (zakładka Source): dopisz
+   `<p>Twój kod logowania: <strong>{{ .Token }}</strong></p>`. Na iPhonie logujemy się
+   kodem, bo link z maila otworzyłby się w Safari, a nie w aplikacji z ekranu początkowego.
 
 Po zmianach w `web/` strona wdraża się sama (workflow **Deploy web app**). Lokalnie:
 `cd web && npm install && npm run dev` – bez zmiennych Supabase działa tryb demo
