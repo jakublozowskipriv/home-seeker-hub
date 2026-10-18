@@ -1,0 +1,65 @@
+# Domyślne preferencje wyszukiwania.
+# Można je nadpisać sekretem HOMESEEKER_PREFERENCES (cały YAML) albo plikiem
+# wskazanym w HOMESEEKER_PREFERENCES_FILE. Później będzie je można edytować w aplikacji.
+
+city: Poznań
+
+budget:
+  max_price: 800000          # twardy limit dla "pasujących"
+  negotiable_max_price: 840000  # 800-840 tys. -> sekcja "do negocjacji", bez powiadomień push
+  monthly_payment_min: 2600
+  monthly_payment_max: 3200
+
+area:
+  min: 38
+  max: 50
+
+rooms:
+  min: 2
+  max: 3
+
+floor:
+  min: 2                     # parter (0) i 1. piętro odpadają
+  elevator_preferred: true
+
+balcony_required: true       # balkon / loggia / taras
+exclude_gas_heating: true    # bez pieca / kotła gazowego w mieszkaniu
+markets: [primary, secondary]
+completion_deadline: 2028-03-31   # rynek pierwotny: oddanie najpóźniej
+build_year_preferred_min: 2015
+
+locations:
+  preferred: [Jeżyce, Łazarz, Wilda, Rataje]
+  allowed: [Grunwald, Stare Miasto, Centrum, Ogrody, Sołacz, Garbary, Śródka,
+            Chwaliszewo, Ostrów Tumski, Dębiec, Górczyn, Zawady, Chartowo, Żegrze,
+            Winogrady]
+  excluded: [Naramowice, Morasko, Umultowo, Radojewo, Kiekrz, Strzeszyn, Krzyżowniki,
+             Smochowice, Ławica, Junikowo, Kwiatowe, Szczepankowo, Krzesiny, Głuszyna,
+             Starołęka, Minikowo, Marlewo, Antoninek, Zieliniec, Kobylepole, Spławie,
+             Michałowo, Fabianowo, Kotowo, Podolany, Piątkowo]
+
+destinations:
+  - name: Praca (Nowy Rynek D)
+    lat: 52.3990             # przybliżone - ul. Wierzbięcice, kompleks Nowy Rynek
+    lon: 16.9205
+  - name: Stary Rynek
+    lat: 52.4085
+    lon: 16.9342
+
+commute:
+  max_minutes: 20            # tramwaj + pieszo, od drzwi do drzwi
+
+weights:                     # suma nie musi wynosić 100 - wynik jest normalizowany
+  location: 20
+  commute: 20
+  floor: 15
+  build_year: 15
+  price: 15
+  elevator: 5
+  area: 5
+  rooms: 5
+
+notifications:
+  notify_review: true        # oferty z brakującymi danymi (np. nie wiadomo czy jest balkon)
+  notify_negotiable: false
+  max_per_run: 15

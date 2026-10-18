@@ -1,0 +1,31 @@
+name: Smoke test (live portals)
+
+# Runs the scrapers against the real portals without storing anything or notifying,
+# so parser changes can be checked against live data.
+on:
+  push:
+    branches: ["claude/**"]
+    paths: ["src/**", ".github/workflows/smoke.yml"]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - name: Diagnose portal access
+        run: homeseeker diagnose
+      - name: Probe Otodom structure
+        continue-on-error: true
+        run: homeseeker probe otodom
+      - name: Probe OLX structure
+        continue-on-error: true
+        run: homeseeker probe olx
+      - name: Dry run
+        run: homeseeker run --dry-run --max-pages 2 --max-details 30
