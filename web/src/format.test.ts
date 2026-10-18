@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { projectUrl } from "./api";
 import type { Listing, ListingStatus } from "./api/types";
 import {
   applyFilters, DEFAULT_FILTERS, floorText, groupDuplicates, money, relativeTime,
@@ -63,5 +64,13 @@ describe("format", () => {
     expect(ids({ ...DEFAULT_FILTERS, onlyNew: true })).toEqual(["b"]);
     expect(ids({ ...DEFAULT_FILTERS, status: "rejected" })).toEqual(["d"]);
     expect(ids({ ...DEFAULT_FILTERS, verdict: "all", query: "wilda" })).toHaveLength(3);
+  });
+});
+
+describe("projectUrl", () => {
+  it("strips paths and slashes from the Supabase URL", () => {
+    expect(projectUrl("https://abcd.supabase.co/rest/v1/")).toBe("https://abcd.supabase.co");
+    expect(projectUrl("https://abcd.supabase.co")).toBe("https://abcd.supabase.co");
+    expect(projectUrl("abcd.supabase.co")).toBeUndefined();
   });
 });
