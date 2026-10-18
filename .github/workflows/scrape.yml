@@ -28,6 +28,9 @@ jobs:
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       HOMESEEKER_PREFERENCES: ${{ secrets.HOMESEEKER_PREFERENCES }}
       OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+      # Calendar feed publishing (Supabase Storage); optional.
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       MAX_DETAILS: ${{ inputs.max_details || '150' }}
     steps:
       - uses: actions/checkout@v4

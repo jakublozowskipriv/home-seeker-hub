@@ -35,3 +35,7 @@ class Source:
 
     def fetch_details(self, listing: Listing) -> Listing:
         return listing
+
+    def fetch_open_day(self, listing: Listing) -> dict | None:
+        """Exact open day times (date, timeFrom, timeTo), for sources that have them."""
+        return None

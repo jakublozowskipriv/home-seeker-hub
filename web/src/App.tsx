@@ -6,6 +6,7 @@ import { DataProvider, useData } from "./data";
 import { relativeTime } from "./format";
 import { AccessPage } from "./pages/AccessPage";
 import { DetailPage } from "./pages/DetailPage";
+import { EventsPage } from "./pages/EventsPage";
 import { ListPage } from "./pages/ListPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MapPage } from "./pages/MapPage";
@@ -30,6 +31,7 @@ function Shell() {
       <nav className="tabbar">
         <NavLink to="/" end>📋<span>Oferty</span></NavLink>
         <NavLink to="/mapa">🗺️<span>Mapa</span></NavLink>
+        <NavLink to="/wydarzenia">📅<span>Wydarzenia</span></NavLink>
         <NavLink to="/preferencje">⚙️<span>Preferencje</span></NavLink>
         {isOwner && <NavLink to="/dostep">👥<span>Dostęp</span></NavLink>}
       </nav>
@@ -45,6 +47,7 @@ const router = createHashRouter([
       { index: true, element: <ListPage /> },
       { path: "oferta/:id", element: <DetailPage /> },
       { path: "mapa", element: <MapPage /> },
+      { path: "wydarzenia", element: <EventsPage /> },
       { path: "preferencje", element: <PreferencesPage /> },
       { path: "dostep", element: <AccessPage /> },
     ],

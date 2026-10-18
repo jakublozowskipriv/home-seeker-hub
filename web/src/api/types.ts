@@ -88,6 +88,25 @@ export interface PricePoint {
   seen_at: string;
 }
 
+export type EventKind = "open_day" | "fair" | "other";
+
+export interface CalendarEvent {
+  id: number;
+  kind: EventKind;
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  location: string | null;
+  url: string | null;
+  listing_id: string | null;
+  source: string;
+  notes: string | null;
+  created_by: string | null;
+}
+
+export type NewEvent = Pick<CalendarEvent, "kind" | "title" | "starts_at" | "ends_at" |
+  "location" | "url" | "notes" | "listing_id">;
+
 export interface Me {
   email: string;
   member: Member | null; // null: signed in, but not on the members list
@@ -122,6 +141,12 @@ export interface Api {
   removeMember(email: string): Promise<void>;
   /** Returns the previous visit time and records the current one. */
   touchVisit(): Promise<string | null>;
+  // events and calendar
+  events(): Promise<CalendarEvent[]>;
+  addEvent(event: NewEvent): Promise<void>;
+  deleteEvent(id: number): Promise<void>;
+  /** Subscription URL of the calendar feed (owner only; null when not published yet). */
+  calendarUrl(): Promise<string | null>;
   preferences(): Promise<Record<string, unknown> | null>;
   savePreferences(prefs: Record<string, unknown>): Promise<void>;
 }

@@ -110,6 +110,23 @@ Po zmianach w `web/` strona wdraża się sama (workflow **Deploy web app**). Lok
 `cd web && npm install && npm run dev` – bez zmiennych Supabase działa tryb demo
 z przykładowymi danymi.
 
+## Wydarzenia i kalendarz
+
+* **Dni otwarte** z ogłoszeń Otodom (data z wyników, godziny ze strony oferty) – tylko dla
+  ofert, które nie zostały odrzucone.
+* **Targi mieszkaniowe w Poznaniu** ze strony organizatora (targimieszkan.pl).
+* **Twoje oglądania** – status „Oglądanie” z terminem w aplikacji.
+* Nowe dni otwarte i targi przychodzą na Telegram; w aplikacji zakładka **Wydarzenia**
+  z przyciskami „Dodaj do kalendarza” (Apple / Google) i możliwością dopisania własnych.
+
+**Subskrypcja kalendarza** (aktualizuje się sama, co przebieg): dodaj sekret
+`SUPABASE_SERVICE_KEY` – Supabase → Project Settings → API Keys → **Secret key**
+(`sb_secret_…`, albo legacy `service_role`). To klucz z pełnymi uprawnieniami: tylko jako
+**sekret** GitHuba, nigdy jako zmienna ani w kodzie. Scraper publikuje plik `.ics` w
+publicznym buckecie Storage pod losową, trudną do zgadnięcia nazwą; link zobaczysz
+w aplikacji (Wydarzenia → Subskrypcja kalendarza) i dodasz go w kalendarzu iPhone'a lub
+Google.
+
 ## Preferencje
 
 Domyślne preferencje są w [`config/preferences.default.yaml`](config/preferences.default.yaml).
@@ -144,5 +161,5 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
 - [x] Etap 2: webapp (PWA na iPhone'a): lista, filtry, mapa, statusy, reakcje, komentarze,
       edycja preferencji, dostęp dla rodziny
 - [ ] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
-- [ ] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
+- [x] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
 - [ ] Etap 5: kalkulator kredytu, czerwone flagi (LLM), porównywarka, checklista oglądania

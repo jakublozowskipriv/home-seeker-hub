@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import type { Comment, Listing, PricePoint, StatusKey } from "../api/types";
+import type { CalendarEvent, Comment, Listing, PricePoint, StatusKey } from "../api/types";
+import { formatWhen } from "../calendar";
+import { AddToCalendar } from "../components/AddToCalendar";
 import { Avatars, Photo, ScoreBadge } from "../components/ListingCard";
 import { MapView } from "../components/MapView";
 import { useData } from "../data";
@@ -39,7 +41,8 @@ function Facts({ l }: { l: Listing }) {
   );
 }
 
-function StatusEditor({ listingId }: { listingId: string }) {
+function StatusEditor({ listing }: { listing: Listing }) {
+  const listingId = listing.id;
   const { statuses, isOwner, refreshShared } = useData();
   const current = statuses.get(listingId);
   const [note, setNote] = useState(current?.note ?? "");
@@ -57,10 +60,20 @@ function StatusEditor({ listingId }: { listingId: string }) {
     }
   }
 
+  const viewingItem = current?.status === "viewing" && current.viewing_at ? {
+    uid: `viewing-${listingId}`, start: current.viewing_at,
+    title: `📅 Oglądanie: ${listing.location_text ?? "mieszkanie"}`,
+    location: listing.location_text, url: listing.url, description: current.note,
+  } : null;
+
   if (!isOwner) {
     return current ? (
-      <p><span className="status">{STATUS_LABELS[current.status]}</span>
-        {current.note && <span className="muted"> – {current.note}</span>}</p>
+      <div className="stack-s">
+        <p><span className="status">{STATUS_LABELS[current.status]}</span>
+          {current.note && <span className="muted"> – {current.note}</span>}</p>
+        {viewingItem && <div className="row gap"><span className="small">
+          {formatWhen(viewingItem.start)}</span><AddToCalendar item={viewingItem} /></div>}
+      </div>
     ) : <p className="muted">Bez statusu.</p>;
   }
   return (
@@ -83,6 +96,7 @@ function StatusEditor({ listingId }: { listingId: string }) {
                  onBlur={() => void save("viewing")} />
         </label>
       )}
+      {viewingItem && <AddToCalendar item={viewingItem} />}
     </div>
   );
 }
@@ -156,8 +170,10 @@ export function DetailPage() {
   const [listing, setListing] = useState<Listing | null | undefined>(byId.get(id));
   const [history, setHistory] = useState<PricePoint[]>([]);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
+  const [openDays, setOpenDays] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
+    void api.events().then((evs) => setOpenDays(evs.filter((e) => e.listing_id === id)));
     void api.listing(id).then(setListing);
     void api.priceHistory(id).then(setHistory);
     void loadPrefs().then((p) => setPrefs(p.prefs));
@@ -222,9 +238,23 @@ export function DetailPage() {
         </div>
       </section>
 
+      {openDays.length > 0 && (
+        <section className="card stack-s">
+          <h2>Dni otwarte</h2>
+          {openDays.map((e) => (
+            <div key={e.id} className="row between gap">
+              <b className="small">{formatWhen(e.starts_at, e.ends_at)}</b>
+              <AddToCalendar item={{ uid: `event-${e.id}`, title: `🏠 Dzień otwarty: ${e.title}`,
+                                     start: e.starts_at, end: e.ends_at, location: e.location,
+                                     url: e.url ?? l.url }} />
+            </div>
+          ))}
+        </section>
+      )}
+
       <section className="card stack-s">
         <h2>Status</h2>
-        <StatusEditor listingId={l.id} />
+        <StatusEditor listing={l} />
         <h2>Reakcje</h2>
         <Reactions listingId={l.id} />
       </section>

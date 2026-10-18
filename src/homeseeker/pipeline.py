@@ -13,7 +13,8 @@ from typing import Any
 from . import dedup
 from .db import Store, now, row_to_listing
 from .evaluate import Evaluation, Verdict, evaluate
-from .http import FetchError
+from .events import event_message, fetch_fairs, open_day_event
+from .http import FetchError, Http
 from .models import Listing
 from .notify.format import listing_html, money
 from .notify.telegram import Telegram, TelegramError
@@ -41,6 +42,7 @@ class RunStats:
     details_failed: int = 0
     details_deferred: int = 0
     notified: int = 0
+    events_new: int = 0
     deactivated: int = 0
     incomplete_sources: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
@@ -85,6 +87,35 @@ def _reason_key(text: str) -> str:
     return next((k for k in REASON_KEYS if k in text), text)
 
 
+def collect_open_days(
+    listing: Listing,
+    verdict: str | None,
+    source: Source,
+    store: Store,
+    known_events: set[str],
+    stats: RunStats,
+) -> None:
+    """Create events for announced open days of a (non-rejected) listing."""
+    dates = [d for d in listing.raw.get("open_days") or [] if d >= now().date().isoformat()]
+    if not dates or verdict in (None, Verdict.REJECTED.value):
+        return
+    details = listing.raw.get("open_day")
+    for day in dates:
+        event = open_day_event(listing, day, None)
+        if event["external_id"] in known_events:
+            continue
+        if not details or details.get("date") != day:
+            try:
+                details = source.fetch_open_day(listing)
+            except FetchError as e:
+                log.warning("Open day details failed for %s: %s", listing.url, e)
+        if details and details.get("date") == day:
+            event = open_day_event(listing, day, details)
+        store.upsert_event(event)
+        known_events.add(event["external_id"])
+        stats.events_new += 1
+
+
 def process_source(
     source: Source,
     store: Store,
@@ -99,6 +130,7 @@ def process_source(
     details_budget = max_details
     candidates = store.active_candidates()
     known = store.load_source(source.name)
+    known_events = store.event_ids()
     unchanged: list[str] = []
 
     for listing in source.search(prefs, max_pages):
@@ -115,6 +147,10 @@ def process_source(
             and (existing.price == listing.price or listing.price is None)
         ):
             unchanged.append(listing.id)
+            if listing.raw.get("open_days"):
+                full = row_to_listing(existing)
+                full.raw = {**full.raw, "open_days": listing.raw["open_days"]}
+                collect_open_days(full, existing.verdict, source, store, known_events, stats)
             continue
         if existing is not None and existing.details_fetched:
             # Price changed: details are already known, no need to refetch.
@@ -145,6 +181,7 @@ def process_source(
             group = dedup.find_group(listing, candidates)
         status = store.upsert(listing, ev, group)
         stats.statuses[status] += 1
+        collect_open_days(listing, ev.verdict.value, source, store, known_events, stats)
         stats.verdicts[ev.verdict.value] += 1
         for r in ev.rejections:
             stats.rejections[_reason_key(r)] += 1
@@ -236,6 +273,35 @@ def _digest(chosen: list[Any], header: str) -> str:
     return "\n".join(lines)
 
 
+MAX_EVENT_MESSAGES = 10
+
+
+def send_event_notifications(store: Store, telegram: Telegram, stats: RunStats) -> None:
+    """New open days of listings still in the game, and new fairs."""
+    pending = store.pending_event_notifications()
+    if not pending:
+        return
+    verdicts = store.verdicts([e.listing_id for e in pending if e.listing_id])
+    relevant = [
+        e
+        for e in pending
+        if e.listing_id is None or verdicts.get(e.listing_id) != Verdict.REJECTED.value
+    ]
+    try:
+        if len(relevant) > MAX_EVENT_MESSAGES:
+            lines = [f"🗓 <b>{len(relevant)} nowych wydarzeń</b> – najbliższe:"]
+            lines += [event_message(e).split("\n")[0] for e in relevant[:MAX_EVENT_MESSAGES]]
+            telegram.send_text("\n".join(lines))
+        else:
+            for e in relevant:
+                telegram.send_text(event_message(e))
+        stats.notified += len(relevant)
+        store.mark_events_notified([e.id for e in pending])
+    except TelegramError as e:
+        stats.errors.append(str(e))
+        log.error("Telegram error: %s", e)
+
+
 def send_notifications(
     store: Store,
     prefs: Preferences,
@@ -315,6 +381,7 @@ def run(
     telegram: Telegram | None,
     max_pages: int = 50,
     max_details: int = 60,
+    fairs_http: Http | None = None,
 ) -> RunStats:
     stats = RunStats()
     run_id = store.start_run()
@@ -334,6 +401,15 @@ def run(
     if complete:
         stats.deactivated = store.deactivate_stale(complete, started - STALE_AFTER)
 
+    if fairs_http is not None:
+        known = store.event_ids()
+        for event in fetch_fairs(fairs_http):
+            if event["external_id"] not in known:
+                store.upsert_event(event)
+                stats.events_new += 1
+
     send_notifications(store, prefs, telegram, drops, stats)
+    if telegram is not None:
+        send_event_notifications(store, telegram, stats)
     store.finish_run(run_id, stats.to_dict())
     return stats

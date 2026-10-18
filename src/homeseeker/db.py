@@ -154,6 +154,26 @@ member_visits = Table(
     Column("last_visit_at", DateTime(timezone=True), nullable=False),
 )
 
+events = Table(
+    "events",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    # open_day | fair | other  (viewings come from listing_status.viewing_at)
+    Column("kind", String, nullable=False),
+    Column("title", Text, nullable=False),
+    Column("starts_at", DateTime(timezone=True), nullable=False, index=True),
+    Column("ends_at", DateTime(timezone=True)),
+    Column("location", Text),
+    Column("url", Text),
+    Column("listing_id", String, ForeignKey("listings.id", ondelete="SET NULL")),
+    Column("source", String, nullable=False),  # otodom | fairs | manual
+    Column("external_id", String, unique=True),  # dedup key for scraped events
+    Column("notes", Text),
+    Column("created_by", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("notified_at", DateTime(timezone=True)),
+)
+
 LISTING_FIELDS = [
     "source",
     "source_id",
@@ -412,6 +432,81 @@ class Store:
         ts = now()
         with self.engine.begin() as conn:
             conn.execute(stmt, [{"b_id": r.id, "b_at": ts, "b_price": r.price} for r in rows])
+
+    # --- events
+    def upsert_event(self, event: dict) -> bool:
+        """Insert or update a scraped event by external_id. Returns True when new."""
+        event = {
+            k: (v.astimezone(UTC) if isinstance(v, datetime) and v.tzinfo else v)
+            for k, v in event.items()
+        }  # stored in UTC (SQLite keeps no time zone)
+        with self.engine.begin() as conn:
+            row = conn.execute(
+                select(events.c.id).where(events.c.external_id == event["external_id"])
+            ).first()
+            if row is None:
+                conn.execute(insert(events).values(created_at=now(), **event))
+                return True
+            conn.execute(update(events).where(events.c.id == row[0]).values(**event))
+            return False
+
+    def event_ids(self) -> set[str]:
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(events.c.external_id).where(events.c.external_id.is_not(None))
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    def verdicts(self, listing_ids: list[str]) -> dict[str, str]:
+        if not listing_ids:
+            return {}
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(listings.c.id, listings.c.verdict).where(listings.c.id.in_(listing_ids))
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
+
+    def calendar_entries(self, since: datetime) -> tuple[list[Any], list[Any]]:
+        """(events, viewings with their listing) starting after `since`."""
+        with self.engine.connect() as conn:
+            evs = conn.execute(
+                select(events).where(events.c.starts_at >= since).order_by(events.c.starts_at)
+            ).fetchall()
+            viewings = conn.execute(
+                select(
+                    listing_status,
+                    listings.c.title,
+                    listings.c.url,
+                    listings.c.location_text,
+                    listings.c.price,
+                    listings.c.area,
+                    listings.c.rooms,
+                )
+                .join(listings, listings.c.id == listing_status.c.listing_id)
+                .where(
+                    listing_status.c.status == "viewing",
+                    listing_status.c.viewing_at.is_not(None),
+                    listing_status.c.viewing_at >= since,
+                )
+            ).fetchall()
+        return evs, viewings
+
+    def pending_event_notifications(self) -> list[Any]:
+        with self.engine.connect() as conn:
+            return conn.execute(
+                select(events)
+                .where(
+                    events.c.notified_at.is_(None),
+                    events.c.source != "manual",
+                    events.c.starts_at >= now(),
+                )
+                .order_by(events.c.starts_at)
+            ).fetchall()
+
+    def mark_events_notified(self, ids: list[int]) -> None:
+        if ids:
+            with self.engine.begin() as conn:
+                conn.execute(update(events).where(events.c.id.in_(ids)).values(notified_at=now()))
 
     def mark_notified(self, listing_id: str, price: float | None) -> None:
         with self.engine.begin() as conn:
