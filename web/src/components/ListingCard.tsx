@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import type { Listing, ListingStatus, Member, Reaction } from "../api/types";
+import { useData } from "../data";
 import {
-  commuteEntries, headline, initials, isEstimate, money, personName, reactionSummary, scoreClass,
-  shortDestination, sourceName, STATUS_LABELS,
+  commuteEntries, headline, initials, isEstimate, money, personName, reactionSummary, redFlags,
+  scoreClass, shortDestination, sourceName, STATUS_LABELS,
 } from "../format";
 
 export function Photo({ listing, className = "" }: { listing: Listing; className?: string }) {
@@ -43,6 +44,8 @@ interface Props {
 export function ListingCard({ listing: l, duplicates, status, reactions, comments, members,
                               isNew }: Props) {
   const { up, down } = reactionSummary(l.id, reactions);
+  const { medians } = useData();
+  const flags = redFlags(l, medians).filter((f) => f.level === "high");
   return (
     <Link to={`/oferta/${encodeURIComponent(l.id)}`} className="listing-card">
       <Photo listing={l} />
@@ -58,6 +61,11 @@ export function ListingCard({ listing: l, duplicates, status, reactions, comment
           {l.verdict === "review" && <span className="chip warn">do sprawdzenia</span>}
           {l.verdict === "negotiable" && <span className="chip warn">do negocjacji</span>}
           {l.market === "primary" && <span className="chip">pierwotny</span>}
+          {flags.length > 0 && (
+            <span className="chip flag" title={flags.map((f) => f.text).join("\n")}>
+              🚩 {flags.length}
+            </span>
+          )}
           {commuteEntries(l).map(([name, min]) => (
             <span key={name} className="chip">
               🚋 {isEstimate(l) ? "~" : ""}{Math.round(min)} min {shortDestination(name)}

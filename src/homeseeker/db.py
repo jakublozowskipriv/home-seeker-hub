@@ -147,6 +147,15 @@ comments = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+viewing_checklists = Table(
+    "viewing_checklists",
+    metadata,
+    Column("listing_id", String, ForeignKey("listings.id", ondelete="CASCADE"), primary_key=True),
+    Column("items", JsonType, nullable=False),  # {item key: {"done": bool, "note": str}}
+    Column("updated_by", String),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
 member_visits = Table(
     "member_visits",
     metadata,

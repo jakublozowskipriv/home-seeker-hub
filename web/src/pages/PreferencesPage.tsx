@@ -90,6 +90,9 @@ export function PreferencesPage() {
           {num(["budget", "negotiable_max_price"], "„Do negocjacji” do", 5000, "zł")}
           {num(["budget", "monthly_payment_min"], "Rata od", 100, "zł")}
           {num(["budget", "monthly_payment_max"], "Rata do", 100, "zł")}
+          {num(["mortgage", "down_payment_percent"], "Wkład własny", 5, "%")}
+          {num(["mortgage", "interest_rate_percent"], "Oprocentowanie kredytu", 0.1, "%")}
+          {num(["mortgage", "years"], "Okres kredytu", 1, "lat")}
         </div>)}
         {section("Mieszkanie", <>
           <div className="grid2">

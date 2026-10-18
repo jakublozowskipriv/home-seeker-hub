@@ -244,3 +244,34 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 details summary { cursor: pointer; color: var(--accent); }
 details p { margin-top: 6px; }
 .tabbar a { padding: 2px 6px; }
+
+/* --- stage 5: costs, red flags, comparison, checklist */
+.warn-text { color: var(--warn); }
+.notes li.flag { color: var(--danger); font-weight: 600; }
+.chip.flag { background: #f8e1dc; color: var(--danger); font-weight: 700; }
+.costs { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; }
+.costs li { display: flex; justify-content: space-between; gap: 12px; }
+.costs li b { white-space: nowrap; }
+.costs li.total { border-top: 1px solid var(--border); padding-top: 4px; font-weight: 700; }
+.cash { font-size: 1rem; }
+.check-item { display: grid; gap: 4px; padding: 4px 0; }
+.check-item .toggle { align-items: flex-start; }
+.check-item .toggle input { margin-top: 3px; flex: none; width: 18px; height: 18px; }
+.check-item .link { white-space: nowrap; flex: none; }
+.check-group { border-top: 1px solid var(--border); padding: 8px 0 0; }
+.check-group summary { font-weight: 700; cursor: pointer; padding: 4px 0; }
+.check-group[open] summary { margin-bottom: 4px; }
+.compare-bar {
+  position: sticky; bottom: 76px; justify-self: center; box-shadow: var(--shadow);
+  text-decoration: none;
+}
+.compare-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+.compare { border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
+.compare th, .compare td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.compare thead th { min-width: 130px; font-weight: 400; }
+.compare tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; position: sticky; left: 0; background: var(--bg); }
+.compare td.best { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.compare .photo { height: 80px; min-height: 80px; }
+@media (prefers-color-scheme: dark) {
+  .chip.flag { background: #4a2620; }
+}

@@ -179,3 +179,20 @@ def test_calendar_link_visible_to_owner_only(engine):
         )
     assert len(as_user(engine, OWNER, "select key from settings where key = 'calendar_url'")) == 1
     assert as_user(engine, MEMBER, "select key from settings where key = 'calendar_url'") == []
+
+
+def test_checklist_shared_by_members(engine):
+    add = (
+        "insert into viewing_checklists (listing_id, items, updated_by, updated_at) "
+        "values ('otodom:1', '{\"damp\": {\"done\": true}}', :by, now())"
+    )
+    assert as_user(engine, MEMBER, add, {"by": MEMBER}) == 1
+    assert denied(engine, MEMBER, add, {"by": OWNER})  # signed with someone else's e-mail
+    assert denied(engine, STRANGER, add, {"by": STRANGER})
+    with engine.begin() as conn:
+        conn.execute(text(add.replace(":by", "'mama@example.com'")))
+    edit = "update viewing_checklists set items = '{}', updated_by = :by, updated_at = now()"
+    assert as_user(engine, OWNER, edit, {"by": OWNER}) == 1
+    assert denied(engine, STRANGER, edit, {"by": STRANGER})
+    assert len(as_user(engine, MEMBER, "select listing_id from viewing_checklists")) == 1
+    assert as_user(engine, STRANGER, "select listing_id from viewing_checklists") == []

@@ -1,6 +1,6 @@
 import type {
-  Api, CalendarEvent, Comment, Listing, ListingStatus, Me, Member, NewEvent, PricePoint, Reaction,
-  ReactionKey, StatusKey,
+  Api, CalendarEvent, Checklist, ChecklistItem, Comment, Listing, ListingStatus, Me, Member,
+  NewEvent, PricePoint, Reaction, ReactionKey, StatusKey,
 } from "./types";
 
 /**
@@ -70,6 +70,8 @@ function fake(
         shops_500m: 9 - (n % 7),
       },
       land_register: n === 1 ? "PO1P/00000000/0" : null,
+      red_flags: n === 4 ? [{ level: "high", text: "sprzedaż z lokatorem / najemcą" }] : [],
+      monthly_payment: Math.round(((price * 0.8) * 0.065 / 12) / (1 - (1 + 0.065 / 12) ** -360)),
     },
     group_id: `demo:${n}`,
     first_seen_at: day,
@@ -77,8 +79,11 @@ function fake(
     active: true,
     description: "Przykładowy opis mieszkania w trybie demo. Balkon od południa, " +
       "ogrzewanie miejskie, blisko tramwaju i sklepów.",
-    raw: n % 3 === 1 ? { parcel: { id: `306401_1.0021.AR_12.${n}/3`, region: "Demo",
-                                   number: `${n}/3` } } : {},
+    raw: {
+      rent: 450 + n * 20,
+      ...(n % 3 === 1 ? { parcel: { id: `306401_1.0021.AR_12.${n}/3`, region: "Demo",
+                                    number: `${n}/3` } } : {}),
+    },
     ...rest,
   };
 }
@@ -127,6 +132,7 @@ export class DemoApi implements Api {
     ME, { email: "mama@example.com", role: "member", display_name: "Mama" },
   ];
   private prefs: Record<string, unknown> | null = null;
+  private checklists = new Map<string, Checklist>();
   private eventRows: CalendarEvent[] = [
     { id: 1, kind: "open_day", title: "Dzień otwarty – osiedle demo przy ul. Przemysłowej",
       starts_at: inDays(5, 10), ends_at: inDays(5, 14), location: "Poznań, ul. Przemysłowa",
@@ -212,6 +218,13 @@ export class DemoApi implements Api {
   }
   async calendarUrl(): Promise<string | null> {
     return "https://example.supabase.co/storage/v1/object/public/calendar/demo.ics";
+  }
+  async checklist(listingId: string): Promise<Checklist | null> {
+    return this.checklists.get(listingId) ?? null;
+  }
+  async saveChecklist(listingId: string, items: Record<string, ChecklistItem>): Promise<void> {
+    this.checklists.set(listingId, { listing_id: listingId, items, updated_by: ME.email,
+                                     updated_at: new Date().toISOString() });
   }
   async preferences(): Promise<Record<string, unknown> | null> { return this.prefs; }
   async savePreferences(prefs: Record<string, unknown>): Promise<void> { this.prefs = prefs; }

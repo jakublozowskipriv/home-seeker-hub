@@ -27,6 +27,14 @@ class Budget(BaseModel):
         return max(self.max_price, self.negotiable_max_price or 0)
 
 
+class Mortgage(BaseModel):
+    """Assumptions for the instalment estimate; adjustable per listing in the web app."""
+
+    down_payment_percent: float = 20
+    interest_rate_percent: float = 6.5
+    years: int = 30
+
+
 class Range(BaseModel):
     min: float | None = None
     max: float | None = None
@@ -79,6 +87,7 @@ class Notifications(BaseModel):
 class Preferences(BaseModel):
     city: str = "Poznań"
     budget: Budget
+    mortgage: Mortgage = Field(default_factory=Mortgage)
     area: Range = Field(default_factory=Range)
     rooms: Range = Field(default_factory=Range)
     floor: FloorPrefs = Field(default_factory=FloorPrefs)

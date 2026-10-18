@@ -99,6 +99,10 @@ def listing_html(listing, ev: Evaluation, prefix: str = "🏠 Nowa oferta") -> s
         lines.append(near)
     if f := facts(listing):
         lines.append("🏗 " + " · ".join(f))
+    if ev.monthly_payment:
+        lines.append(f"💳 Rata ~{money(ev.monthly_payment)}/mies.")
+    if flags := [f["text"] for f in ev.red_flags if f["level"] == "high"]:
+        lines.append("🚩 " + escape("; ".join(flags)))
     lines.append(f"⭐ Dopasowanie: <b>{ev.score}/100</b>")
     if ev.missing:
         lines.append("❓ Do sprawdzenia: " + escape(", ".join(ev.missing)))
