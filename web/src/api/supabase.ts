@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
-  Api, Comment, Listing, ListingStatus, Me, Member, PricePoint, Reaction, ReactionKey, StatusKey,
+  Api, CalendarEvent, Comment, Listing, ListingStatus, Me, Member, NewEvent, PricePoint, Reaction,
+  ReactionKey, StatusKey,
 } from "./types";
 
 /** Columns for the list view: everything except the heavy description / raw data. */
@@ -189,6 +190,28 @@ export class SupabaseApi implements Api {
       email, last_visit_at: new Date().toISOString(),
     }));
     return previous;
+  }
+
+  async events(): Promise<CalendarEvent[]> {
+    const since = new Date(Date.now() - 86400_000).toISOString();
+    return check(await this.db.from("events").select("*").gte("starts_at", since)
+      .order("starts_at")) as CalendarEvent[];
+  }
+
+  async addEvent(event: NewEvent): Promise<void> {
+    check(await this.db.from("events").insert({
+      ...event, source: "manual", created_by: await this.email(),
+      created_at: new Date().toISOString(),
+    }));
+  }
+
+  async deleteEvent(id: number): Promise<void> {
+    check(await this.db.from("events").delete().eq("id", id));
+  }
+
+  async calendarUrl(): Promise<string | null> {
+    const rows = check(await this.db.from("settings").select("value").eq("key", "calendar_url"));
+    return (rows?.[0] as { value: string } | undefined)?.value ?? null;
   }
 
   async preferences(): Promise<Record<string, unknown> | null> {

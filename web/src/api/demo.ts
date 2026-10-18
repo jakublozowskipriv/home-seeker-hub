@@ -1,5 +1,6 @@
 import type {
-  Api, Comment, Listing, ListingStatus, Me, Member, PricePoint, Reaction, ReactionKey, StatusKey,
+  Api, CalendarEvent, Comment, Listing, ListingStatus, Me, Member, NewEvent, PricePoint, Reaction,
+  ReactionKey, StatusKey,
 } from "./types";
 
 /**
@@ -80,6 +81,12 @@ const LISTINGS: Listing[] = [
   fake(10, "Rataje", "os. Lecha", 52.3866, 16.9659, { commute: [19, 20], verdict: "review" }),
 ];
 
+function inDays(days: number, hour: number): string {
+  const d = new Date(Date.now() + days * 86400_000);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
 const ME: Member = { email: "ty@example.com", role: "owner", display_name: "Ty" };
 
 export class DemoApi implements Api {
@@ -104,6 +111,16 @@ export class DemoApi implements Api {
     ME, { email: "mama@example.com", role: "member", display_name: "Mama" },
   ];
   private prefs: Record<string, unknown> | null = null;
+  private eventRows: CalendarEvent[] = [
+    { id: 1, kind: "open_day", title: "Dzień otwarty – osiedle demo przy ul. Przemysłowej",
+      starts_at: inDays(5, 10), ends_at: inDays(5, 14), location: "Poznań, ul. Przemysłowa",
+      url: "https://example.com/dni-otwarte", listing_id: "demo:1", source: "otodom",
+      notes: null, created_by: null },
+    { id: 2, kind: "fair", title: "Targi Mieszkań i Domów (demo)", starts_at: inDays(12, 10),
+      ends_at: inDays(12, 17), location: "Poznań, MTP, ul. Głogowska 14",
+      url: "https://example.com/targi", listing_id: null, source: "fairs", notes: null,
+      created_by: null },
+  ];
 
   async currentUser(): Promise<Me | null> {
     return this.signedIn ? { email: ME.email, member: ME } : null;
@@ -169,6 +186,16 @@ export class DemoApi implements Api {
   }
   async touchVisit(): Promise<string | null> {
     return new Date(Date.now() - 30 * 3600_000).toISOString();
+  }
+  async events(): Promise<CalendarEvent[]> { return [...this.eventRows]; }
+  async addEvent(event: NewEvent): Promise<void> {
+    this.eventRows.push({ ...event, id: Date.now(), source: "manual", created_by: ME.email });
+  }
+  async deleteEvent(id: number): Promise<void> {
+    this.eventRows = this.eventRows.filter((e) => e.id !== id);
+  }
+  async calendarUrl(): Promise<string | null> {
+    return "https://example.supabase.co/storage/v1/object/public/calendar/demo.ics";
   }
   async preferences(): Promise<Record<string, unknown> | null> { return this.prefs; }
   async savePreferences(prefs: Record<string, unknown>): Promise<void> { this.prefs = prefs; }

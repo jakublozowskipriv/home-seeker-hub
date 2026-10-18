@@ -45,6 +45,7 @@ POLICIES: list[tuple[str, str, str, str | None, str | None]] = [
     ("price_history", "members read", "select", MEMBER, None),
     ("runs", "members read", "select", MEMBER, None),
     ("settings", "members read preferences", "select", f"{MEMBER} and key = 'preferences'", None),
+    ("settings", "owner reads calendar link", "select", f"{OWNER} and key = 'calendar_url'", None),
     ("settings", "owner adds preferences", "insert", None, f"{OWNER} and key = 'preferences'"),
     (
         "settings",
@@ -68,6 +69,15 @@ POLICIES: list[tuple[str, str, str, str | None, str | None]] = [
     ("comments", "members read", "select", MEMBER, None),
     ("comments", "own add", "insert", None, f"{MEMBER} and author_email = {ME}"),
     ("comments", "own or owner removes", "delete", f"author_email = {ME} or {OWNER}", None),
+    ("events", "members read", "select", MEMBER, None),
+    (
+        "events",
+        "members add own",
+        "insert",
+        None,
+        f"{MEMBER} and created_by = {ME} and source = 'manual'",
+    ),
+    ("events", "creator or owner removes", "delete", f"created_by = {ME} or {OWNER}", None),
     ("member_visits", "members read", "select", MEMBER, None),
     ("member_visits", "own add", "insert", None, f"{MEMBER} and email = {ME}"),
     ("member_visits", "own edit", "update", f"email = {ME}", f"email = {ME}"),
@@ -77,8 +87,8 @@ GRANTS = [
     "grant select on public.listings, public.price_history, public.runs to authenticated",
     "grant select, insert, update on public.settings to authenticated",
     "grant select, insert, update, delete on public.members, public.listing_status, "
-    "public.reactions, public.comments, public.member_visits to authenticated",
-    "grant usage, select on sequence public.comments_id_seq to authenticated",
+    "public.reactions, public.comments, public.member_visits, public.events to authenticated",
+    "grant usage, select on sequence public.comments_id_seq, public.events_id_seq to authenticated",
 ]
 
 

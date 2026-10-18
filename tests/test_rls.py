@@ -156,3 +156,26 @@ def test_reactions_and_comments_are_personal(engine):
 def test_scraper_connection_is_not_restricted(engine):
     with engine.connect() as conn:
         assert conn.execute(text("select count(*) from settings")).scalar() >= 1
+
+
+def test_events_manual_only_from_the_browser(engine):
+    add = (
+        "insert into events (kind, title, starts_at, source, created_by, created_at) "
+        "values ('other', 'Spotkanie z doradcą', now(), :source, :by, now())"
+    )
+    assert as_user(engine, MEMBER, add, {"source": "manual", "by": MEMBER}) == 1
+    assert denied(engine, MEMBER, add, {"source": "otodom", "by": MEMBER})
+    assert denied(engine, MEMBER, add, {"source": "manual", "by": OWNER})
+    assert denied(engine, STRANGER, add, {"source": "manual", "by": STRANGER})
+
+
+def test_calendar_link_visible_to_owner_only(engine):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into settings (key, value, updated_at) "
+                "values ('calendar_url', '\"https://x\"', now())"
+            )
+        )
+    assert len(as_user(engine, OWNER, "select key from settings where key = 'calendar_url'")) == 1
+    assert as_user(engine, MEMBER, "select key from settings where key = 'calendar_url'") == []

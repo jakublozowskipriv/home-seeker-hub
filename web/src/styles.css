@@ -235,3 +235,12 @@ fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
   .listing-card { grid-template-columns: 92px 1fr; }
   .grid2, .weights { grid-template-columns: 1fr; }
 }
+
+.grid3 { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; }
+.chip.kind-open_day { background: var(--accent-soft); color: var(--accent); }
+.chip.kind-fair { background: var(--warn-soft); color: var(--warn); }
+.chip.kind-viewing { background: var(--new); color: #fff; }
+.event strong { font-size: 1rem; }
+details summary { cursor: pointer; color: var(--accent); }
+details p { margin-top: 6px; }
+.tabbar a { padding: 2px 6px; }
