@@ -35,7 +35,7 @@ def _telegram(store: Store | None) -> Telegram | None:
             log.error("Telegram: %s", e)
             return None
         if not chat_id:
-            log.warning("Telegram: no chat found - send /start to your bot first")
+            log.warning("Telegram: send /start to your bot (the one named above) first")
             return None
         tg.chat_id = chat_id
         if store:
@@ -167,6 +167,7 @@ def cmd_telegram_test(args: argparse.Namespace) -> int:
     if tg is None:
         print("Telegram not configured (TELEGRAM_BOT_TOKEN) or no chat found.", file=sys.stderr)
         return 1
+    print("Telegram:", tg.diagnostics())
     tg.send_text("✅ Home Seeker Hub: połączenie z Telegramem działa!")
     print("Test message sent.")
     return 0

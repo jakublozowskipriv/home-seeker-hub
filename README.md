@@ -43,7 +43,9 @@ GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
 1. W Telegramie napisz do **@BotFather** → `/newbot` → nadaj nazwę → skopiuj **token**.
 2. Otwórz rozmowę ze swoim nowym botem i wyślij mu `/start`.
 3. Identyfikator czatu zostanie wykryty i zapisany automatycznie przy pierwszym przebiegu
-   (albo ustaw go ręcznie jako `TELEGRAM_CHAT_ID`).
+   (albo ustaw go ręcznie jako `TELEGRAM_CHAT_ID`). Sprawdzić połączenie można workflowem
+   **Actions → Telegram test → Run workflow** – wyśle wiadomość testową, a w logach pokaże,
+   do którego bota należy token.
 
 ### 3. Sekrety w GitHubie
 

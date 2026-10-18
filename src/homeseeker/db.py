@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    bindparam,
     create_engine,
     func,
     insert,
@@ -252,6 +253,43 @@ class Store:
                     )
                 )
         return status
+
+    def load_source(self, source: str) -> dict[str, Any]:
+        """All stored listings of a source, keyed by id - one query instead of one per item."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(select(listings).where(listings.c.source == source)).fetchall()
+        return {row.id: row for row in rows}
+
+    def touch_many(self, listing_ids: list[str], chunk: int = 500) -> None:
+        """Mark listings as seen in this run (bulk, the database may be far away)."""
+        ts = now()
+        with self.engine.begin() as conn:
+            for i in range(0, len(listing_ids), chunk):
+                conn.execute(
+                    update(listings)
+                    .where(listings.c.id.in_(listing_ids[i : i + chunk]))
+                    .values(last_seen_at=ts, active=True)
+                )
+
+    def all_listings(self) -> list[Any]:
+        with self.engine.connect() as conn:
+            return conn.execute(select(listings)).fetchall()
+
+    def update_evaluations(self, rows: list[dict]) -> None:
+        """Bulk update of verdict/score/evaluation: dicts with id, verdict, score, evaluation."""
+        if not rows:
+            return
+        stmt = (
+            update(listings)
+            .where(listings.c.id == bindparam("b_id"))
+            .values(
+                verdict=bindparam("b_verdict"),
+                score=bindparam("b_score"),
+                evaluation=bindparam("b_evaluation"),
+            )
+        )
+        with self.engine.begin() as conn:
+            conn.execute(stmt, [{f"b_{k}": v for k, v in row.items()} for row in rows])
 
     def touch(self, listing_id: str) -> None:
         with self.engine.begin() as conn:

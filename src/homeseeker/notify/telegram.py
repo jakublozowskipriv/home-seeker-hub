@@ -33,13 +33,42 @@ class Telegram:
         return data["result"]
 
     def discover_chat_id(self) -> int | None:
-        """Chat id of the latest private message sent to the bot (e.g. /start)."""
+        """Chat id of the latest private chat with the bot (a /start message or the
+        'user started the bot' membership update)."""
         updates = self._call("getUpdates")
         for update in reversed(updates):
-            chat = (update.get("message") or {}).get("chat") or {}
-            if chat.get("type") == "private":
-                return chat["id"]
+            for kind in ("message", "my_chat_member"):
+                chat = (update.get(kind) or {}).get("chat") or {}
+                if chat.get("type") == "private":
+                    return chat["id"]
+        log.warning("Telegram: no private chat found. %s", self.diagnostics(updates))
         return None
+
+    def diagnostics(self, updates: list[dict] | None = None) -> str:
+        """Which bot the token belongs to and what is waiting - no message contents."""
+        parts = []
+        try:
+            me = self._call("getMe")
+            parts.append(f"token belongs to @{me.get('username')}")
+        except TelegramError as e:
+            parts.append(f"getMe failed: {e}")
+        try:
+            webhook = self._call("getWebhookInfo")
+            parts.append(
+                "webhook is SET (blocks getUpdates)" if webhook.get("url") else "no webhook"
+            )
+        except TelegramError as e:
+            parts.append(f"getWebhookInfo failed: {e}")
+        if updates is not None:
+            kinds = [k for u in updates for k in u if k != "update_id"]
+            chats = [
+                ((u.get(k) or {}).get("chat") or {}).get("type")
+                for u in updates
+                for k in u
+                if isinstance(u.get(k), dict)
+            ]
+            parts.append(f"{len(updates)} pending updates, kinds={kinds}, chat types={chats}")
+        return "; ".join(parts)
 
     def send_text(self, html: str) -> None:
         self._call(

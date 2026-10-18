@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
@@ -22,6 +24,8 @@ from .textparse import fold
 log = logging.getLogger(__name__)
 
 STALE_AFTER = timedelta(days=2)
+# Bump when evaluation rules change, so stored listings get re-evaluated.
+EVALUATION_VERSION = 1
 BOOTSTRAP_DIGEST_SIZE = 10
 
 
@@ -94,19 +98,25 @@ def process_source(
     seen: set[str] = set()
     details_budget = max_details
     candidates = store.active_candidates()
+    known = store.load_source(source.name)
+    unchanged: list[str] = []
 
     for listing in source.search(prefs, max_pages):
         if listing.id in seen:
             continue
         seen.add(listing.id)
         stats.seen[source.name] += 1
-        existing = store.get(listing.id)
+        existing = known.get(listing.id)
 
+        # Fully known (or rejected from search data alone) and same price: nothing to do.
+        if (
+            existing is not None
+            and (existing.details_fetched or existing.verdict == Verdict.REJECTED.value)
+            and (existing.price == listing.price or listing.price is None)
+        ):
+            unchanged.append(listing.id)
+            continue
         if existing is not None and existing.details_fetched:
-            if existing.price == listing.price or listing.price is None:
-                store.touch(listing.id)
-                stats.statuses["unchanged"] += 1
-                continue
             # Price changed: details are already known, no need to refetch.
             merged = row_to_listing(existing)
             merged.price = listing.price
@@ -154,6 +164,8 @@ def process_source(
         ):
             drops.append(PriceDrop(listing, ev, existing.notified_price))
 
+    store.touch_many(unchanged)
+    stats.statuses["unchanged"] += len(unchanged)
     if not source.search_complete:
         stats.incomplete_sources.append(source.name)
     stats.errors += [f"{source.name}: {e}" for e in source.errors]
@@ -175,6 +187,35 @@ def _detect_placeholder_coords(listing: Listing, store: Store, prefs: Preference
         other = row_to_listing(row)
         other.coords_approximate = True
         store.upsert(other, evaluate(other, prefs), row.group_id)
+
+
+def evaluation_fingerprint(prefs: Preferences) -> str:
+    payload = json.dumps([EVALUATION_VERSION, prefs.model_dump(mode="json")], sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+def reevaluate_if_needed(store: Store, prefs: Preferences) -> int:
+    """Re-evaluate every stored listing when preferences or rules changed."""
+    fingerprint = evaluation_fingerprint(prefs)
+    previous = store.get_setting("evaluation_fingerprint")
+    if previous == fingerprint:
+        return 0
+    updates = []
+    if previous is not None:
+        for row in store.all_listings():
+            ev = evaluate(row_to_listing(row), prefs)
+            updates.append(
+                {
+                    "id": row.id,
+                    "verdict": ev.verdict.value,
+                    "score": ev.score,
+                    "evaluation": ev.to_dict(),
+                }
+            )
+        store.update_evaluations(updates)
+        log.info("Preferences or rules changed: re-evaluated %s listings", len(updates))
+    store.set_setting("evaluation_fingerprint", fingerprint)
+    return len(updates)
 
 
 def _evaluation_from_row(row: Any) -> Evaluation:
@@ -266,6 +307,7 @@ def run(
 ) -> RunStats:
     stats = RunStats()
     run_id = store.start_run()
+    reevaluate_if_needed(store, prefs)
     started = now()
     drops: list[PriceDrop] = []
     verdicts = notifiable_verdicts(prefs)
