@@ -27,6 +27,7 @@ POZNAN_BBOX = (52.29, 16.73, 52.52, 17.08)  # south, west, north, east
 GROCERY = "supermarket|convenience|greengrocer|bakery|butcher"
 SHOPS_QUERY = '[out:json][timeout:90];nwr["shop"~"^({kinds})$"]({s},{w},{n},{e});out center tags;'
 SHOPS_REFRESH = timedelta(days=7)
+SHOPS_RETRY = timedelta(hours=12)  # after a failed refresh (Overpass can hang for minutes)
 SHOPS_RADIUS_M = 500
 ULDK_URL = "https://uldk.gugik.gov.pl/"
 
@@ -49,7 +50,7 @@ def fetch_shops() -> list[list]:
     s, w, n, e = POZNAN_BBOX
     query = SHOPS_QUERY.format(kinds=GROCERY, s=s, w=w, n=n, e=e)
     errors = []
-    with httpx.Client(timeout=120, headers={"User-Agent": OVERPASS_AGENT}) as client:
+    with httpx.Client(timeout=75, headers={"User-Agent": OVERPASS_AGENT}) as client:
         for url in OVERPASS_URLS:
             try:
                 resp = client.post(url, data={"data": query})
@@ -64,12 +65,14 @@ def load_shops(store: Store, http: Http | None) -> tuple[list[list], str | None]
     """Grocery shops in Poznań from OpenStreetMap, cached in the database for a week."""
     cached = store.get_setting("shops") or {}
     fetched = cached.get("fetched_at")
-    if http is not None and (
-        not fetched or now() - datetime.fromisoformat(fetched) > SHOPS_REFRESH
-    ):
+    attempted = store.get_setting("shops_attempt_at")
+    due = not fetched or now() - datetime.fromisoformat(fetched) > SHOPS_REFRESH
+    backing_off = attempted and now() - datetime.fromisoformat(attempted) < SHOPS_RETRY
+    if http is not None and due and not (backing_off and cached):
         try:
             items = fetch_shops()
         except FetchError as err:
+            store.set_setting("shops_attempt_at", now().isoformat())
             log.warning("Shops (OpenStreetMap) not refreshed: %s", err)
         else:
             if items:

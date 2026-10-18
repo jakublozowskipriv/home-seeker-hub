@@ -176,3 +176,28 @@ def test_message_shows_lines_and_shops(router, prefs, good_listing):
     assert "min Stary Rynek (linia 2)" in html
     assert "🚏 Dębiec" in html and "szacunek" not in html
     assert "szacunek" in listing_html(good_listing, evaluate(good_listing, prefs))
+
+
+def test_failed_shop_refresh_is_not_retried_every_run(monkeypatch):
+    from datetime import timedelta
+
+    from homeseeker import area as area_mod
+    from homeseeker.db import Store, init_db, make_engine, now
+    from homeseeker.http import FetchError
+
+    engine = make_engine("sqlite://")
+    init_db(engine)
+    store = Store(engine)
+    old = (now() - timedelta(days=8)).isoformat()
+    store.set_setting("shops", {"fetched_at": old, "items": [[52.4, 16.9, "bakery", ""]]})
+    calls = []
+
+    def failing():
+        calls.append(1)
+        raise FetchError("down")
+
+    monkeypatch.setattr(area_mod, "fetch_shops", failing)
+    for _ in range(3):
+        shops, _version = area_mod.load_shops(store, http=object())
+        assert shops == [[52.4, 16.9, "bakery", ""]]  # the old list stays in use
+    assert len(calls) == 1
