@@ -1,4 +1,6 @@
-import type { Listing, ListingStatus, Member, Reaction, StatusKey, Verdict } from "./api/types";
+import type {
+  Leg, Listing, ListingStatus, Member, Parcel, Reaction, StatusKey, Verdict,
+} from "./api/types";
 
 export const STATUS_LABELS: Record<StatusKey, string> = {
   interesting: "⭐ Interesujące",
@@ -46,6 +48,33 @@ export function shortDestination(name: string): string {
 export function commuteEntries(l: Listing): [string, number][] {
   return Object.entries(l.evaluation?.commute ?? {}).sort(([a], [b]) => a.localeCompare(b));
 }
+
+export function isEstimate(l: Listing): boolean {
+  return l.evaluation?.commute_method !== "timetable";
+}
+
+/** "linia 2", "linie 5 → 2" (with a change) or "pieszo". */
+export function routeLines(legs: Leg[] | undefined): string {
+  const rides = (legs ?? []).flatMap((leg) => (leg.mode === "walk" ? [] : [leg.line]));
+  if (!rides.length) return "pieszo";
+  return `${rides.length === 1 ? "linia" : "linie"} ${rides.join(" → ")}`;
+}
+
+export function legText(leg: Leg): string {
+  if (leg.mode === "walk") return `🚶 ${leg.minutes} min`;
+  return `${leg.mode === "tram" ? "🚋" : "🚌"} ${leg.line}: ${leg.from} → ${leg.to}`;
+}
+
+export function distance(m: number): string {
+  return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
+/** Map of the parcel in the national Geoportal (cadastre, zoning). */
+export function geoportalUrl(parcel: Parcel): string {
+  return `https://mapy.geoportal.gov.pl/imapnext/imap/?identifyParcel=${encodeURIComponent(parcel.id)}`;
+}
+
+export const EKW_URL = "https://przegladarka-ekw.ms.gov.pl/eukw_prz/KsiegiWieczyste/wyszukiwanieKW";
 
 export function sourceName(source: string): string {
   return { otodom: "Otodom", olx: "OLX" }[source] ?? source;

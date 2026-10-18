@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import type { CalendarEvent, Comment, Listing, PricePoint, StatusKey } from "../api/types";
+import type {
+  CalendarEvent, Comment, Listing, Parcel, PricePoint, StatusKey,
+} from "../api/types";
 import { formatWhen } from "../calendar";
 import { AddToCalendar } from "../components/AddToCalendar";
 import { Avatars, Photo, ScoreBadge } from "../components/ListingCard";
 import { MapView } from "../components/MapView";
 import { useData } from "../data";
 import {
-  appleMapsUrl, commuteEntries, floorText, googleMapsUrl, HEATING_LABELS, money, personName,
-  reactionSummary, relativeTime, shortDestination, sourceName, STATUS_LABELS, VERDICT_LABELS,
+  appleMapsUrl, commuteEntries, distance, EKW_URL, floorText, geoportalUrl, googleMapsUrl,
+  HEATING_LABELS, isEstimate, legText, money, personName, reactionSummary, relativeTime,
+  routeLines, shortDestination, sourceName, STATUS_LABELS, VERDICT_LABELS,
 } from "../format";
 import { destinations, loadPrefs, type Prefs } from "../preferences";
 
@@ -38,6 +41,83 @@ function Facts({ l }: { l: Listing }) {
     <dl className="facts">
       {rows.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{v}</dd></div>))}
     </dl>
+  );
+}
+
+function Surroundings({ l }: { l: Listing }) {
+  const ev = l.evaluation;
+  const commute = commuteEntries(l);
+  const near = ev?.nearby ?? {};
+  const parcel = (l.raw?.parcel ?? null) as Parcel | null;
+  const places: [string, string][] = [
+    ...(near.tram_stop ? [["🚋 Przystanek tramwajowy",
+      `${near.tram_stop.name}, ${distance(near.tram_stop.m)}`] as [string, string]] : []),
+    ...(near.bus_stop ? [["🚌 Przystanek autobusowy",
+      `${near.bus_stop.name}, ${distance(near.bus_stop.m)}`] as [string, string]] : []),
+    ...(near.supermarket ? [["🛒 Najbliższy supermarket",
+      `${near.supermarket.name}, ${distance(near.supermarket.m)}`] as [string, string]] : []),
+    ...(near.shops_500m != null ? [["🥖 Sklepy spożywcze do 500 m",
+      String(near.shops_500m)] as [string, string]] : []),
+  ];
+  if (!commute.length && !places.length && !parcel && !ev?.land_register) return null;
+  return (
+    <section className="card stack-s">
+      <h2>Dojazd i okolica</h2>
+      {commute.map(([name, min]) => {
+        const legs = ev?.commute_routes?.[name];
+        return (
+          <div key={name} className="stack-s">
+            <div className="row between">
+              <b>{shortDestination(name)}</b>
+              <span>{isEstimate(l) ? "~" : ""}{Math.round(min)} min
+                {!isEstimate(l) && <span className="muted small"> · {routeLines(legs)}</span>}</span>
+            </div>
+            {legs && legs.length > 0 && (
+              <p className="muted small">{legs.map(legText).join(" → ")}</p>
+            )}
+          </div>
+        );
+      })}
+      {commute.length > 0 && (
+        <p className="muted small">
+          {isEstimate(l)
+            ? "Szacunek z odległości (rozkład ZTM był niedostępny)."
+            : "Wg rozkładu ZTM, od drzwi do drzwi, ze średnim czekaniem – przyjazd w ciągu " +
+              "godziny wokół ustawionej pory (Preferencje), w dzień roboczy."}
+        </p>
+      )}
+      {places.length > 0 && (
+        <dl className="facts">
+          {places.map(([k, v]) => (<div key={k}><dt>{k}</dt><dd>{v}</dd></div>))}
+        </dl>
+      )}
+      {(parcel || ev?.land_register) && (
+        <div className="stack-s">
+          {parcel && (
+            <p className="small">Działka <b>{parcel.number}</b>
+              {parcel.region && <> (obręb {parcel.region})</>}
+              <span className="muted"> · {parcel.id}</span></p>
+          )}
+          {ev?.land_register && (
+            <p className="small">Księga wieczysta z ogłoszenia: <b>{ev.land_register}</b></p>
+          )}
+          <div className="links">
+            {parcel && (
+              <a className="button ghost" href={geoportalUrl(parcel)} target="_blank"
+                 rel="noreferrer">Geoportal: działka i plan ↗</a>
+            )}
+            <a className="button ghost" href={EKW_URL} target="_blank" rel="noreferrer">
+              Księgi wieczyste (EKW) ↗
+            </a>
+          </div>
+          <p className="muted small">
+            {ev?.land_register
+              ? "W EKW wpisz numer księgi: sprawdzisz właściciela, hipoteki i służebności."
+              : "Numer księgi wieczystej podaje sprzedający – poproś o niego przed oglądaniem."}
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -209,7 +289,9 @@ export function DetailPage() {
         <div className="chips">
           <span className={`chip verdict-${l.verdict}`}>{VERDICT_LABELS[l.verdict]}</span>
           {commuteEntries(l).map(([name, min]) => (
-            <span key={name} className="chip">🚋 ~{Math.round(min)} min {shortDestination(name)}</span>
+            <span key={name} className="chip">
+              🚋 {isEstimate(l) ? "~" : ""}{Math.round(min)} min {shortDestination(name)}
+            </span>
           ))}
         </div>
         {ev && (ev.missing.length > 0 || ev.warnings.length > 0 || ev.rejections.length > 0) && (
@@ -272,6 +354,8 @@ export function DetailPage() {
                    zoom={14} className="map-small" />
         </section>
       )}
+
+      <Surroundings l={l} />
 
       {history.length > 1 && (
         <section className="card">

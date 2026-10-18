@@ -8,7 +8,7 @@ import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import dedup
 from .db import Store, now, row_to_listing
@@ -22,13 +22,17 @@ from .preferences import Preferences
 from .sources.base import Source
 from .textparse import fold
 
+if TYPE_CHECKING:
+    from .area import Area
+
 log = logging.getLogger(__name__)
 
 STALE_AFTER = timedelta(days=2)
 FAIRS_CHECK_EVERY = timedelta(hours=20)
 # Bump when evaluation rules change, so stored listings get re-evaluated.
-EVALUATION_VERSION = 1
+EVALUATION_VERSION = 2
 DIGEST_SIZE = 10
+PARCELS_PER_RUN = 80
 
 
 @dataclass
@@ -46,6 +50,8 @@ class RunStats:
     events_new: int = 0
     open_days: Counter = field(default_factory=Counter)  # upcoming open days seen, by verdict
     deactivated: int = 0
+    commute_method: str = "estimate"
+    parcels_found: int = 0
     incomplete_sources: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -129,6 +135,7 @@ def process_source(
     max_pages: int,
     max_details: int,
     notify_verdicts: list[str],
+    area: Area | None = None,
 ) -> list[PriceDrop]:
     drops: list[PriceDrop] = []
     seen: set[str] = set()
@@ -164,7 +171,7 @@ def process_source(
             listing = merged
 
         if not listing.details_fetched and not source.complete_search_results:
-            pre = evaluate(listing, prefs)
+            pre = evaluate(listing, prefs, area)
             if pre.verdict != Verdict.REJECTED:
                 if details_budget > 0:
                     details_budget -= 1
@@ -178,9 +185,9 @@ def process_source(
                     stats.details_deferred += 1
 
         if listing.has_coords and not listing.coords_approximate:
-            _detect_placeholder_coords(listing, store, prefs)
+            _detect_placeholder_coords(listing, store, prefs, area)
 
-        ev = evaluate(listing, prefs)
+        ev = evaluate(listing, prefs, area)
         group = None
         if ev.verdict != Verdict.REJECTED:
             group = dedup.find_group(listing, candidates)
@@ -214,7 +221,9 @@ def process_source(
     return drops
 
 
-def _detect_placeholder_coords(listing: Listing, store: Store, prefs: Preferences) -> None:
+def _detect_placeholder_coords(
+    listing: Listing, store: Store, prefs: Preferences, area: Area | None = None
+) -> None:
     """Portals put listings without an exact address on a placeholder point (e.g. the city
     centre). Different addresses sharing identical coordinates means the point is fake."""
     others = [
@@ -228,24 +237,27 @@ def _detect_placeholder_coords(listing: Listing, store: Store, prefs: Preference
             continue
         other = row_to_listing(row)
         other.coords_approximate = True
-        store.upsert(other, evaluate(other, prefs), row.group_id)
+        store.upsert(other, evaluate(other, prefs, area), row.group_id)
 
 
-def evaluation_fingerprint(prefs: Preferences) -> str:
-    payload = json.dumps([EVALUATION_VERSION, prefs.model_dump(mode="json")], sort_keys=True)
+def evaluation_fingerprint(prefs: Preferences, area: Area | None = None) -> str:
+    payload = json.dumps(
+        [EVALUATION_VERSION, prefs.model_dump(mode="json"), area.version if area else None],
+        sort_keys=True,
+    )
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
-def reevaluate_if_needed(store: Store, prefs: Preferences) -> int:
-    """Re-evaluate every stored listing when preferences or rules changed."""
-    fingerprint = evaluation_fingerprint(prefs)
+def reevaluate_if_needed(store: Store, prefs: Preferences, area: Area | None = None) -> int:
+    """Re-evaluate every stored listing when preferences, rules or timetable changed."""
+    fingerprint = evaluation_fingerprint(prefs, area)
     previous = store.get_setting("evaluation_fingerprint")
     if previous == fingerprint:
         return 0
     updates = []
     if previous is not None:
         for row in store.all_listings():
-            ev = evaluate(row_to_listing(row), prefs)
+            ev = evaluate(row_to_listing(row), prefs, area)
             updates.append(
                 {
                     "id": row.id,
@@ -255,9 +267,31 @@ def reevaluate_if_needed(store: Store, prefs: Preferences) -> int:
                 }
             )
         store.update_evaluations(updates)
-        log.info("Preferences or rules changed: re-evaluated %s listings", len(updates))
+        log.info("Preferences, rules or timetable changed: re-evaluated %s listings", len(updates))
     store.set_setting("evaluation_fingerprint", fingerprint)
     return len(updates)
+
+
+def enrich_parcels(store: Store, area: Area, limit: int = PARCELS_PER_RUN) -> int:
+    """Look up the land parcel of listings still in the game (a few per run)."""
+    found, seen = 0, {}
+    todo = [
+        r
+        for r in store.active_candidates()
+        if r.lat is not None and not r.coords_approximate and "parcel" not in (r.raw or {})
+    ]
+    for row in todo[:limit]:
+        point = (round(row.lat, 5), round(row.lon, 5))  # flats of one building share it
+        if point not in seen:
+            try:
+                seen[point] = area.parcel(row.lat, row.lon)
+            except FetchError as e:
+                log.warning("Parcel lookup failed: %s", e)
+                break  # service down: try again next run
+        parcel = seen[point]
+        store.update_raw(row.id, {**(row.raw or {}), "parcel": parcel})
+        found += parcel is not None
+    return found
 
 
 def _evaluation_from_row(row: Any) -> Evaluation:
@@ -387,16 +421,21 @@ def run(
     max_pages: int = 50,
     max_details: int = 60,
     fairs_http: Http | None = None,
+    area: Area | None = None,
 ) -> RunStats:
     stats = RunStats()
+    if area is not None and area.router is not None:
+        stats.commute_method = "timetable"
     run_id = store.start_run()
-    reevaluate_if_needed(store, prefs)
+    reevaluate_if_needed(store, prefs, area)
     started = now()
     drops: list[PriceDrop] = []
     verdicts = notifiable_verdicts(prefs)
     for source in sources:
         try:
-            drops += process_source(source, store, prefs, stats, max_pages, max_details, verdicts)
+            drops += process_source(
+                source, store, prefs, stats, max_pages, max_details, verdicts, area
+            )
         except Exception as e:  # one broken portal must not stop the others
             log.exception("Source %s crashed", source.name)
             stats.errors.append(f"{source.name}: {e}")
@@ -417,6 +456,9 @@ def run(
                 store.upsert_event(event)
                 stats.events_new += 1
         store.set_setting("fairs_checked_at", now().isoformat())
+
+    if area is not None and area.http is not None:
+        stats.parcels_found = enrich_parcels(store, area)
 
     send_notifications(store, prefs, telegram, drops, stats)
     if telegram is not None:

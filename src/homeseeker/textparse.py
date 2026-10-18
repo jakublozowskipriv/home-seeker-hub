@@ -180,3 +180,12 @@ def detect_completion(text: str | None) -> date | None:
     if m := re.search(rf"{ctx}\w*[^.\n]{{0,25}}?\b(20[2-3]\d)", t):
         return date(int(m.group(2)), 12, 31)
     return None
+
+
+# Księga wieczysta: court code (e.g. PO1P for Poznań), 8 digits, check digit.
+_LAND_REGISTER_RE = re.compile(r"\b([A-Z]{2}\d[A-Z])\s*/\s*(\d{8})\s*/\s*(\d)\b", re.I)
+
+
+def find_land_register(text: str | None) -> str | None:
+    m = _LAND_REGISTER_RE.search(text or "")
+    return f"{m.group(1).upper()}/{m.group(2)}/{m.group(3)}" if m else None

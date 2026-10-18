@@ -55,6 +55,21 @@ function fake(
       warnings: n % 4 === 1 ? ["nieznane ogrzewanie"] : [],
       location_category: "preferred", location_name: district,
       commute: { [DEST_WORK]: commute[0], [DEST_CENTRE]: commute[1] },
+      commute_method: "timetable",
+      commute_routes: {
+        [DEST_WORK]: [{ mode: "walk", minutes: 4 },
+          { mode: "tram", line: String(2 + (n % 6)), from: "Przystanek demo", to: "Wierzbięcice" },
+          { mode: "walk", minutes: 2 }],
+        [DEST_CENTRE]: [{ mode: "walk", minutes: 4 },
+          { mode: "tram", line: "16", from: "Przystanek demo", to: "Marcinkowskiego" },
+          { mode: "walk", minutes: 5 }],
+      },
+      nearby: {
+        tram_stop: { name: "Przystanek demo", m: 150 + n * 40 },
+        supermarket: { name: n % 2 ? "Biedronka" : "Lidl", m: 120 + n * 60 },
+        shops_500m: 9 - (n % 7),
+      },
+      land_register: n === 1 ? "PO1P/00000000/0" : null,
     },
     group_id: `demo:${n}`,
     first_seen_at: day,
@@ -62,7 +77,8 @@ function fake(
     active: true,
     description: "Przykładowy opis mieszkania w trybie demo. Balkon od południa, " +
       "ogrzewanie miejskie, blisko tramwaju i sklepów.",
-    raw: {},
+    raw: n % 3 === 1 ? { parcel: { id: `306401_1.0021.AR_12.${n}/3`, region: "Demo",
+                                   number: `${n}/3` } } : {},
     ...rest,
   };
 }

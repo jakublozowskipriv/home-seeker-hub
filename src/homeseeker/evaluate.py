@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from . import districts, geo
+from . import districts, geo, textparse
 from .models import Heating, Listing, Market, Ownership
 from .preferences import Preferences
 
-# Commute is only estimated for now, so allow some slack before a hard rejection.
-COMMUTE_TOLERANCE = 1.25
+if TYPE_CHECKING:
+    from .area import Area
+
+# Slack over the commute limit before a hard rejection: more for the distance estimate,
+# a little for timetable times (they are medians over the morning).
+COMMUTE_TOLERANCE = {"estimate": 1.25, "timetable": 1.1}
 
 
 class Verdict(StrEnum):
@@ -30,6 +35,10 @@ class Evaluation:
     location_category: str | None = None
     location_name: str | None = None
     commute: dict[str, float] = field(default_factory=dict)
+    commute_method: str | None = None  # timetable | estimate
+    commute_routes: dict[str, list[dict]] = field(default_factory=dict)
+    nearby: dict = field(default_factory=dict)  # stops and shops within walking distance
+    land_register: str | None = None  # księga wieczysta number found in the description
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -45,7 +54,7 @@ def _lerp(x: float, x0: float, x1: float, y0: float, y1: float) -> float:
     return y0 + (y1 - y0) * _clamp((x - x0) / (x1 - x0))
 
 
-def evaluate(listing: Listing, prefs: Preferences) -> Evaluation:
+def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> Evaluation:
     rejections: list[str] = []
     missing: list[str] = []
     warnings: list[str] = []
@@ -113,13 +122,26 @@ def evaluate(listing: Listing, prefs: Preferences) -> Evaluation:
         rejections.append(f"lokalizacja: {name}")
 
     commute: dict[str, float] = {}
+    routes: dict[str, list[dict]] = {}
+    method = "timetable" if area is not None and area.router is not None else "estimate"
+    nearby: dict = {}
     if listing.has_coords and not listing.coords_approximate:
         for dest in prefs.destinations:
-            commute[dest.name] = geo.estimate_commute_minutes(
-                listing.lat, listing.lon, dest.lat, dest.lon
+            journey = (
+                area.journey(listing.lat, listing.lon, dest.lat, dest.lon, prefs.commute.arrive_by)
+                if area
+                else None
             )
+            if journey is None:
+                commute[dest.name] = geo.estimate_commute_minutes(
+                    listing.lat, listing.lon, dest.lat, dest.lon
+                )
+            else:
+                commute[dest.name], routes[dest.name] = journey.minutes, journey.legs
+        if area is not None:
+            nearby = area.nearby(listing.lat, listing.lon)
         limit = prefs.commute.max_minutes
-        too_far = [n for n, m in commute.items() if m > limit * COMMUTE_TOLERANCE]
+        too_far = [n for n, m in commute.items() if m > limit * COMMUTE_TOLERANCE[method]]
         if too_far:
             rejections.append("za daleko: " + ", ".join(too_far))
         elif any(m > limit for m in commute.values()):
@@ -129,7 +151,7 @@ def evaluate(listing: Listing, prefs: Preferences) -> Evaluation:
     elif listing.coords_approximate:
         warnings.append("przybliżona lokalizacja")
 
-    score = _score(listing, prefs, category, commute)
+    score = _score(listing, prefs, category, commute, COMMUTE_TOLERANCE[method], nearby)
 
     if rejections:
         verdict = Verdict.REJECTED
@@ -149,11 +171,37 @@ def evaluate(listing: Listing, prefs: Preferences) -> Evaluation:
         location_category=category,
         location_name=name,
         commute=commute,
+        commute_method=method if commute else None,
+        commute_routes=routes,
+        nearby=nearby,
+        land_register=textparse.find_land_register(listing.description),
     )
 
 
+def _nearby_score(nearby: dict) -> float:
+    """Tram stop and grocery shopping within a short walk; 0.5 when unknown."""
+    if not nearby:
+        return 0.5
+    parts = []
+    if "tram_stop" in nearby or "bus_stop" in nearby:
+        stop = nearby.get("tram_stop", {}).get("m", 2000)
+        parts.append(_lerp(stop, 300, 1000, 1.0, 0.1))
+    if "shops_500m" in nearby:
+        supermarket = nearby.get("supermarket", {}).get("m", 2000)
+        shops = _lerp(supermarket, 400, 1200, 1.0, 0.0)
+        if nearby["shops_500m"]:
+            shops = max(shops, 0.6)
+        parts.append(shops)
+    return sum(parts) / len(parts) if parts else 0.5
+
+
 def _score(
-    listing: Listing, prefs: Preferences, location_category: str | None, commute: dict[str, float]
+    listing: Listing,
+    prefs: Preferences,
+    location_category: str | None,
+    commute: dict[str, float],
+    tolerance: float = COMMUTE_TOLERANCE["estimate"],
+    nearby: dict | None = None,
 ) -> int:
     w = prefs.weights
     parts: dict[str, float] = {}
@@ -164,7 +212,7 @@ def _score(
 
     if commute:
         limit = prefs.commute.max_minutes
-        vals = [_lerp(m, 8, limit * COMMUTE_TOLERANCE, 1.0, 0.0) for m in commute.values()]
+        vals = [_lerp(m, 8, limit * tolerance, 1.0, 0.0) for m in commute.values()]
         parts["commute"] = sum(vals) / len(vals)
     else:
         parts["commute"] = 0.3
@@ -201,6 +249,7 @@ def _score(
         parts["area"] = 0.5
 
     parts["rooms"] = {None: 0.5, 2: 0.8}.get(listing.rooms, 1.0 if listing.rooms else 0.5)
+    parts["nearby"] = _nearby_score(nearby or {})
 
     weights = {k: getattr(w, k) for k in parts}
     total = sum(weights.values()) or 1

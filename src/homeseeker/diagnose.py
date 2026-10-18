@@ -249,3 +249,106 @@ def events() -> None:
                 print("  ", h)
     finally:
         http.close()
+
+
+SAMPLE_POINTS = {
+    "Jeżyce, Kościelna": (52.4095, 16.9105),
+    "Wilda, Przemysłowa": (52.3968, 16.9268),
+    "Łazarz, Głogowska": (52.3962, 16.8987),
+    "Rataje, os. Lecha": (52.3866, 16.9659),
+}
+
+
+def area() -> None:
+    """ZTM timetable, routing on sample points, OpenStreetMap shops, ULDK parcels."""
+    import io
+    import time
+    import zipfile
+
+    from . import geo
+    from .area import ULDK_URL, fetch_shops
+    from .http import Http
+    from .preferences import load_preferences
+    from .transit import FEED_URL, Router, parse_feed
+
+    prefs = load_preferences()
+    http = Http(delay=1.0)
+    try:
+        resp = http.get(FEED_URL, timeout=120)
+        data = resp.content
+        print(
+            "GTFS:",
+            resp.status_code,
+            len(data),
+            "bytes",
+            resp.headers.get("content-type"),
+            resp.headers.get("content-disposition"),
+        )
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for info in z.infolist():
+                print(f"  {info.filename}: {info.file_size} bytes")
+            for name in (
+                "feed_info.txt",
+                "routes.txt",
+                "calendar.txt",
+                "calendar_dates.txt",
+                "stops.txt",
+                "trips.txt",
+                "stop_times.txt",
+            ):
+                if name in z.namelist():
+                    with z.open(name) as fh:
+                        head = io.TextIOWrapper(fh, "utf-8-sig").read(400).splitlines()[:4]
+                    print(f"  --- {name}:", *head, sep="\n    ")
+        started = time.monotonic()
+        feed = parse_feed(data, set(prefs.commute.modes))
+        router = Router(feed)
+        print(
+            f"Parsed in {time.monotonic() - started:.1f}s: day {feed.day}, {len(feed.stops)} "
+            f"stops, {len(feed.connections)} connections, {len(feed.trip_lines)} trips, "
+            f"lines {sorted(set(feed.trip_lines))[:40]}"
+        )
+        started = time.monotonic()
+        for label, (lat, lon) in SAMPLE_POINTS.items():
+            for dest in prefs.destinations:
+                j = router.journey(lat, lon, dest.lat, dest.lon, prefs.commute.arrive_by)
+                est = geo.estimate_commute_minutes(lat, lon, dest.lat, dest.lon)
+                print(f"  {label} -> {dest.name}: {j.minutes} min (estimate {est}) {j.legs}")
+            print(
+                "    nearest:",
+                router.nearest_stop(lat, lon, "tram"),
+                router.nearest_stop(lat, lon, "bus"),
+            )
+        print(f"Routing took {time.monotonic() - started:.1f}s")
+    except Exception as e:  # diagnostic
+        print("GTFS ERROR", type(e).__name__, e)
+
+    try:
+        started = time.monotonic()
+        shops = fetch_shops()
+        print(f"Overpass took {time.monotonic() - started:.1f}s")
+        kinds: dict[str, int] = {}
+        for shop in shops:
+            kinds[shop[2]] = kinds.get(shop[2], 0) + 1
+        print("Shops:", len(shops), kinds, shops[:3])
+    except Exception as e:  # diagnostic
+        print("OVERPASS ERROR", type(e).__name__, e)
+
+    lat, lon = SAMPLE_POINTS["Jeżyce, Kościelna"]
+    x, y = geo.to_puwg1992(lat, lon)
+    for label, xy in {
+        "2180 easting,northing": f"{x:.2f},{y:.2f}",
+        "2180 northing,easting": f"{y:.2f},{x:.2f}",
+        "4326 lon,lat": f"{lon},{lat},4326",
+        "4326 lat,lon": f"{lat},{lon},4326",
+    }.items():
+        try:
+            text = http.get(
+                ULDK_URL,
+                params={"request": "GetParcelByXY", "xy": xy, "result": "id,region,parcel"},
+                retries=1,
+            ).text
+            print(f"ULDK {label}: {text.strip()[:200]!r}")
+        except Exception as e:  # diagnostic
+            print(f"ULDK {label} ERROR", e)
+    http.close()

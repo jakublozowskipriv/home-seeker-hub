@@ -51,6 +51,8 @@ class Destination(BaseModel):
 
 class Commute(BaseModel):
     max_minutes: float = 20
+    modes: list[Literal["tram", "bus"]] = Field(default_factory=lambda: ["tram"])
+    arrive_by: str = Field("08:30", pattern=r"^\d{1,2}:\d{2}$")  # checked from -30 to +30 min
 
 
 class Weights(BaseModel):
@@ -62,6 +64,7 @@ class Weights(BaseModel):
     elevator: float = 5
     area: float = 5
     rooms: float = 5
+    nearby: float = 5  # tram stop and grocery shops within walking distance
 
 
 class Notifications(BaseModel):

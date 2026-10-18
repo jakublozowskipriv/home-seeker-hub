@@ -18,9 +18,18 @@ GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
 * **Werdykty**: `match` (spełnia wszystko), `review` (brakuje danych, np. nie wiadomo czy jest
   balkon), `negotiable` (800–840 tys. zł, bez powiadomień), `rejected`.
 * **Wynik 0–100** liczony z wag w `config/preferences.default.yaml`: lokalizacja, dojazd,
-  piętro, rok budowy, cena, winda, metraż, pokoje.
-* **Dojazd** jest na razie *szacowany* z odległości (tramwaj + pieszo). Dokładne czasy
-  z rozkładu ZTM Poznań dojdą w kolejnym etapie.
+  piętro, rok budowy, cena, winda, metraż, pokoje, okolica.
+* **Dojazd** liczony z rozkładu jazdy ZTM Poznań (otwarte dane GTFS, pobierane przy każdym
+  przebiegu): od drzwi do drzwi – dojście do przystanku, tramwaj (z przesiadkami), dojście
+  do celu – albo pieszo, jeśli tak szybciej. Liczy się średnią z przyjazdów w ciągu godziny
+  wokół ustawionej pory (domyślnie 8:00–9:00) w zwykły dzień roboczy, więc czekanie na
+  tramwaj jest wliczone. Autobusy można dołączyć w preferencjach. Gdy rozkład jest
+  niedostępny, dojazd jest szacowany z odległości (oznaczony „~”).
+* **Okolica**: najbliższy przystanek tramwajowy i autobusowy, najbliższy supermarket i liczba
+  sklepów spożywczych do 500 m (z OpenStreetMap, odświeżane co tydzień).
+* **Działka i księga wieczysta**: dla ofert w grze aplikacja ustala działkę (usługa ULDK
+  GUGiK) i daje link do Geoportalu (granice działki, plan miejscowy); numer księgi
+  wieczystej, jeśli jest w opisie, pokazuje przy linku do przeglądarki EKW.
 * Pierwsze uruchomienie wysyła jedno podsumowanie z 10 najlepszymi ofertami; potem tylko
   nowości i obniżki. Gdy naraz pojawi się więcej niż 15 nowych ofert, przychodzi jedno
   podsumowanie zamiast lawiny wiadomości. Powiadomienia dotyczą tylko ofert z ceną
@@ -152,6 +161,8 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
   dlatego zapytania idą przez `curl_cffi` (odcisk TLS Chrome'a).
 * Część ofert (zwłaszcza deweloperskich) ma tylko przybliżoną lokalizację – wtedy dojazd
   nie jest liczony, a ocena opiera się na dzielnicy.
+* Dane: rozkład jazdy © ZTM Poznań (otwarte dane GTFS), sklepy © współtwórcy OpenStreetMap
+  (ODbL), działki – usługa ULDK GUGiK.
 * Workflow **Smoke test** uruchamia scrapery na żywo (bez zapisu) przy zmianach w kodzie,
   żeby szybko wychwycić zmiany w strukturze stron.
 
@@ -160,6 +171,6 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
 - [x] Etap 0–1: scrapery Otodom + OLX, ocena i scoring, deduplikacja, historia cen, Telegram
 - [x] Etap 2: webapp (PWA na iPhone'a): lista, filtry, mapa, statusy, reakcje, komentarze,
       edycja preferencji, dostęp dla rodziny
-- [ ] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
+- [x] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
 - [x] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
 - [ ] Etap 5: kalkulator kredytu, czerwone flagi (LLM), porównywarka, checklista oglądania

@@ -47,7 +47,9 @@ destinations:
     lon: 16.9342
 
 commute:
-  max_minutes: 20            # tramwaj + pieszo, od drzwi do drzwi
+  max_minutes: 20            # od drzwi do drzwi, wg rozkładu ZTM (z czekaniem na tramwaj)
+  modes: [tram]              # dopisz "bus", żeby liczyć też autobusy
+  arrive_by: "08:30"         # dojazd na tę godzinę (średnia z przyjazdów 8:00–9:00)
 
 weights:                     # suma nie musi wynosić 100 - wynik jest normalizowany
   location: 20
@@ -58,6 +60,7 @@ weights:                     # suma nie musi wynosić 100 - wynik jest normalizo
   elevator: 5
   area: 5
   rooms: 5
+  nearby: 5                  # przystanek tramwajowy i sklepy spożywcze w pobliżu
 
 notifications:
   notify_review: true        # oferty z brakującymi danymi (np. nie wiadomo czy jest balkon)
