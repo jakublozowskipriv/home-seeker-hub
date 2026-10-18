@@ -74,7 +74,11 @@ def build_report(store: Store, stats: RunStats, top: int = 15) -> str:
     for r in best[:top]:
         listing = row_to_listing(r)
         ev = r.evaluation or {}
-        commute = ", ".join(f"{m:.0f}" for m in (ev.get("commute") or {}).values())
+        # Postgres JSONB does not keep key order - label each destination.
+        commute = ", ".join(
+            f"{name.split(' (')[0]} {m:.0f}"
+            for name, m in sorted((ev.get("commute") or {}).items())
+        )
         lines.append(
             f"| {r.score} | {r.verdict} | [{headline(listing)}]({listing.url}) | "
             f"{money(listing.price)} | {listing.location_text or ''} | {commute} | "
