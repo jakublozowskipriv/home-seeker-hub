@@ -21,12 +21,6 @@ jobs:
       - run: pip install -e .
       - name: Diagnose portal access
         run: homeseeker diagnose
-      - name: Diagnose Otodom pagination
-        continue-on-error: true
-        run: homeseeker diagnose otodom-pages
-      - name: Diagnose Otodom investment pages
-        continue-on-error: true
-        run: homeseeker diagnose otodom-investment
       - name: Probe Otodom structure
         continue-on-error: true
         run: homeseeker probe otodom

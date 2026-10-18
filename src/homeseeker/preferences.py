@@ -64,7 +64,7 @@ class Weights(BaseModel):
 class Notifications(BaseModel):
     notify_review: bool = True
     notify_negotiable: bool = False
-    max_per_run: int = 15
+    max_per_run: int = 15  # above this, one digest message instead of single messages
 
 
 class Preferences(BaseModel):

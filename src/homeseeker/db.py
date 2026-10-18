@@ -308,6 +308,9 @@ class Store:
                     listings.c.active.is_(True),
                     listings.c.notified_at.is_(None),
                     listings.c.verdict.in_(verdicts),
+                    # Only fully checked listings (heating, coordinates, ...) and with a price.
+                    listings.c.details_fetched.is_(True),
+                    listings.c.price.is_not(None),
                 )
                 .order_by(listings.c.score.desc())
             ).fetchall()
@@ -324,6 +327,28 @@ class Store:
                     listings.c.lon.between(listing.lon - tolerance, listing.lon + tolerance),
                 )
             ).fetchall()
+
+    def notified_groups(self) -> set[str]:
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(listings.c.group_id)
+                .where(listings.c.notified_at.is_not(None), listings.c.group_id.is_not(None))
+                .distinct()
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    def mark_notified_many(self, rows: list[Any]) -> None:
+        """Bulk version of mark_notified for rows with .id and .price."""
+        if not rows:
+            return
+        stmt = (
+            update(listings)
+            .where(listings.c.id == bindparam("b_id"))
+            .values(notified_at=bindparam("b_at"), notified_price=bindparam("b_price"))
+        )
+        ts = now()
+        with self.engine.begin() as conn:
+            conn.execute(stmt, [{"b_id": r.id, "b_at": ts, "b_price": r.price} for r in rows])
 
     def mark_notified(self, listing_id: str, price: float | None) -> None:
         with self.engine.begin() as conn:
