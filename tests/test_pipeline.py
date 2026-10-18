@@ -137,3 +137,24 @@ def test_placeholder_coordinates_are_treated_as_approximate(store, prefs, good_l
         row = store.get(listing_id)
         assert row_to_listing(row).coords_approximate is True
         assert row.evaluation["commute"] == {}
+
+
+def test_preference_change_reevaluates_stored_listings(store, prefs, good_listing):
+    low = copy.deepcopy(good_listing)
+    low.source_id, low.floor, low.area = "2", 1, 41.0
+    run(store, [FakeSource([good_listing, low])], prefs, None)
+    assert store.get("test:2").verdict == "rejected"
+
+    relaxed = prefs.model_copy(deep=True)
+    relaxed.floor.min = 1
+    stats = run(store, [FakeSource([good_listing, low])], relaxed, None)
+    assert stats.statuses == {"unchanged": 2}  # nothing refetched...
+    assert store.get("test:2").verdict == "match"  # ...but re-evaluated
+
+
+def test_unchanged_rejected_listing_is_not_rewritten(store, prefs, good_listing):
+    good_listing.details_fetched = False
+    good_listing.floor = 0
+    run(store, [FakeSource([good_listing])], prefs, None)
+    stats = run(store, [FakeSource([good_listing])], prefs, None)
+    assert stats.statuses == {"unchanged": 1}
