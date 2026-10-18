@@ -145,10 +145,12 @@ def cmd_probe(args: argparse.Namespace) -> int:
 
 
 def cmd_diagnose(args: argparse.Namespace) -> int:
-    from .diagnose import diagnose, otodom_pagination
+    from .diagnose import diagnose, otodom_investment, otodom_pagination
 
     if args.what == "otodom-pages":
         otodom_pagination()
+    elif args.what == "otodom-investment":
+        otodom_investment()
     else:
         diagnose()
     return 0
@@ -201,7 +203,9 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_probe)
 
     p = sub.add_parser("diagnose", help="check portal reachability")
-    p.add_argument("what", nargs="?", default="access", choices=["access", "otodom-pages"])
+    p.add_argument(
+        "what", nargs="?", default="access", choices=["access", "otodom-pages", "otodom-investment"]
+    )
     p.set_defaults(func=cmd_diagnose)
     sub.add_parser("init-db", help="create tables").set_defaults(func=cmd_init_db)
     sub.add_parser("telegram-test", help="send a test message").set_defaults(func=cmd_telegram_test)

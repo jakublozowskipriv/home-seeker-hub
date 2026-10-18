@@ -150,3 +150,35 @@ def otodom_pagination() -> None:
                     print("   data keys:", list(dig(data, "props", "pageProps", "data") or {}))
     finally:
         http.close()
+
+
+def otodom_investment() -> None:
+    """Print the structure of an Otodom investment page and its list of units."""
+    from .cli import _key_tree
+    from .http import Http, dig
+    from .preferences import load_preferences
+    from .sources import otodom
+
+    prefs = load_preferences()
+    http = Http(delay=1.0)
+    try:
+        investment = None
+        for page in (12, 16, 22):
+            data = http.get_next_data(otodom.search_url(prefs, page))
+            items = dig(data, "props", "pageProps", "data", "searchAds", "items") or []
+            investment = next((i for i in items if i.get("estate") == "INVESTMENT"), None)
+            if investment:
+                break
+        if not investment:
+            print("no investment found")
+            return
+        print("\n".join(_key_tree(investment, "inv", max_depth=3)))
+        url = f"{otodom.BASE}/pl/oferta/{investment['slug']}"
+        ad = dig(http.get_next_data(url), "props", "pageProps", "ad") or {}
+        print("ad keys:", list(ad))
+        for key in ("paginatedUnits", "unitGroups"):
+            print("\n".join(_key_tree(ad.get(key), f"ad.{key}", max_depth=6)[:120]))
+        print("\n".join(_key_tree(ad.get("attributes"), "ad.attributes", max_depth=2)))
+        print("ad.location.coordinates:", dig(ad, "location", "coordinates"))
+    finally:
+        http.close()
