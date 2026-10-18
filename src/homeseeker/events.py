@@ -96,7 +96,8 @@ def parse_fairs(page: str, city: str = "Pozna") -> list[dict]:
 
 def fetch_fairs(http: Http) -> list[dict]:
     try:
-        return parse_fairs(http.get(FAIRS_URL).text)
+        # One quick attempt: a slow or unreachable site must not hold up the run.
+        return parse_fairs(http.get(FAIRS_URL, retries=1, timeout=15).text)
     except FetchError as e:
         log.warning("Fairs: %s", e)
         return []
