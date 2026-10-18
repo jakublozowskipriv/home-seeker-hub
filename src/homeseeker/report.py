@@ -60,6 +60,9 @@ def build_report(store: Store, stats: RunStats, top: int = 15) -> str:
     lines.append(f"| Powiadomienia | {stats.notified} |")
     lines.append(f"| Nowe wydarzenia (dni otwarte, targi) | {stats.events_new} |")
     lines.append(f"| Nadchodzące dni otwarte wg werdyktu oferty | {dict(stats.open_days)} |")
+    method = "rozkład ZTM" if stats.commute_method == "timetable" else "szacunek z odległości"
+    lines.append(f"| Dojazdy | {method} |")
+    lines.append(f"| Nowo ustalone działki (Geoportal) | {stats.parcels_found} |")
     if stats.incomplete_sources:
         lines.append(f"| Niepełne źródła | {stats.incomplete_sources} |")
     if stats.errors:

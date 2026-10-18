@@ -184,3 +184,25 @@ def test_listings_without_price_or_details_are_not_pushed(store, prefs, good_lis
     tg.messages.clear()
     run(store, [FakeSource([no_price])], prefs, tg)
     assert tg.messages == []
+
+
+def test_parcels_looked_up_once_and_timetable_change_reevaluates(store, prefs, good_listing):
+    from homeseeker.area import Area
+
+    class FakeArea(Area):
+        calls = 0
+
+        def parcel(self, lat, lon):
+            FakeArea.calls += 1
+            return {"id": "306401_1.0021.AR_12.45/3", "region": "Jeżyce", "number": "45/3"}
+
+    area = FakeArea(http=object())
+    run(store, [FakeSource([good_listing])], prefs, None, area=area)
+    run(store, [FakeSource([good_listing])], prefs, None, area=area)
+    assert FakeArea.calls == 1
+    assert store.get(good_listing.id).raw["parcel"]["number"] == "45/3"
+
+    area.shops_version = "2026-10-25"  # new data -> everything evaluated again
+    stats_before = store.get_setting("evaluation_fingerprint")
+    run(store, [FakeSource([good_listing])], prefs, None, area=area)
+    assert store.get_setting("evaluation_fingerprint") != stats_before

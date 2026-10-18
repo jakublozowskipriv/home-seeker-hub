@@ -374,6 +374,10 @@ class Store:
         with self.engine.begin() as conn:
             conn.execute(stmt, [{f"b_{k}": v for k, v in row.items()} for row in rows])
 
+    def update_raw(self, listing_id: str, raw: dict) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(update(listings).where(listings.c.id == listing_id).values(raw=raw))
+
     def touch(self, listing_id: str) -> None:
         with self.engine.begin() as conn:
             conn.execute(

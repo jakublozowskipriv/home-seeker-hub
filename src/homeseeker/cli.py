@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 
+from .area import load_area
 from .db import Store, init_db, make_engine, seed_owner
 from .http import Http, dig
 from .ics import publish as publish_calendar
@@ -65,6 +66,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     sources = build_sources(args.sources.split(",") if args.sources else None, http)
     telegram = None if args.dry_run else _telegram(store)
     try:
+        area = load_area(store, http, prefs.commute.modes)
         stats = run(
             store,
             sources,
@@ -73,6 +75,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             max_pages=args.max_pages,
             max_details=args.max_details,
             fairs_http=http,
+            area=area,
         )
     finally:
         http.close()
@@ -159,9 +162,11 @@ def cmd_probe(args: argparse.Namespace) -> int:
 
 
 def cmd_diagnose(args: argparse.Namespace) -> int:
-    from .diagnose import diagnose, events, otodom_investment, otodom_pagination
+    from .diagnose import area, diagnose, events, otodom_investment, otodom_pagination
 
-    if args.what == "otodom-pages":
+    if args.what == "area":
+        area()
+    elif args.what == "otodom-pages":
         otodom_pagination()
     elif args.what == "otodom-investment":
         otodom_investment()
@@ -226,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
         "what",
         nargs="?",
         default="access",
-        choices=["access", "otodom-pages", "otodom-investment", "events"],
+        choices=["access", "otodom-pages", "otodom-investment", "events", "area"],
     )
     p.set_defaults(func=cmd_diagnose)
     sub.add_parser("init-db", help="create tables").set_defaults(func=cmd_init_db)

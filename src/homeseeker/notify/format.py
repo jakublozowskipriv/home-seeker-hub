@@ -54,6 +54,32 @@ def facts(listing) -> list[str]:
     return out
 
 
+def route_lines(legs: list[dict]) -> str:
+    """'2 → 5' for a ride with a change; 'pieszo' when walking is quickest."""
+    rides = [leg["line"] for leg in legs if leg.get("mode") != "walk"]
+    return " → ".join(rides) if rides else "pieszo"
+
+
+def commute_text(ev: Evaluation) -> str:
+    if ev.commute_method != "timetable":
+        parts = [f"~{m:.0f} min {escape(n)}" for n, m in ev.commute.items()]
+        return " · ".join(parts) + " (szacunek)"
+    parts = []
+    for name, minutes in ev.commute.items():
+        legs = ev.commute_routes.get(name) or []
+        parts.append(f"{minutes:.0f} min {escape(name)} ({escape(route_lines(legs))})")
+    return " · ".join(parts)
+
+
+def nearby_text(nearby: dict) -> str | None:
+    parts = []
+    if shop := nearby.get("supermarket"):
+        parts.append(f"🛒 {escape(shop['name'])} {shop['m']} m")
+    if stop := nearby.get("tram_stop"):
+        parts.append(f"🚏 {escape(stop['name'])} {stop['m']} m")
+    return " · ".join(parts) or None
+
+
 def listing_html(listing, ev: Evaluation, prefix: str = "🏠 Nowa oferta") -> str:
     lines = [f"{prefix}: <b>{escape(headline(listing))}</b>"]
     price = f"💰 <b>{money(listing.price)}</b>"
@@ -66,10 +92,9 @@ def listing_html(listing, ev: Evaluation, prefix: str = "🏠 Nowa oferta") -> s
     if place:
         lines.append(f"📍 {escape(place)}")
     if ev.commute:
-        approx = " (szacunek)"
-        lines.append(
-            "🚋 " + " · ".join(f"~{m:.0f} min {escape(n)}" for n, m in ev.commute.items()) + approx
-        )
+        lines.append("🚋 " + commute_text(ev))
+    if near := nearby_text(ev.nearby):
+        lines.append(near)
     if f := facts(listing):
         lines.append("🏗 " + " · ".join(f))
     lines.append(f"⭐ Dopasowanie: <b>{ev.score}/100</b>")
