@@ -101,7 +101,8 @@ statusy i listę osób; pozostali przeglądają, reagują i komentują.
    osób – wbudowana poczta Supabase wysyła tylko do członków zespołu projektu):
    **Authentication → Emails → Set up SMTP** – np. Gmail: host `smtp.gmail.com`, port 465,
    login = Twój Gmail, hasło = [hasło aplikacji](https://myaccount.google.com/apppasswords).
-6. **Szablon „Magic link or OTP”** (zakładka Source): dopisz
+6. **Szablony „Magic link or OTP” i „Confirm signup”** (zakładka Source; pierwsze
+   logowanie nowej osoby używa tego drugiego): dopisz
    `<p>Twój kod logowania: <strong>{{ .Token }}</strong></p>`. Na iPhonie logujemy się
    kodem, bo link z maila otworzyłby się w Safari, a nie w aplikacji z ekranu początkowego.
 

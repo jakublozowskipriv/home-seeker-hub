@@ -13,8 +13,22 @@ const LIST_COLUMNS = [
 ].join(",");
 const PAGE = 1000; // Supabase returns at most 1000 rows per request
 
+const NETWORK_ERRORS = ["Load failed", "Failed to fetch", "NetworkError", "Network request failed"];
+
+/** Human-readable (Polish) message for a Supabase / network error. */
+export function errorMessage(message: string): string {
+  if (NETWORK_ERRORS.some((m) => message.includes(m))) {
+    return "Brak połączenia z serwerem – sprawdź internet i spróbuj ponownie.";
+  }
+  if (message.includes("row-level security") || message.includes("permission denied")) {
+    return "Brak uprawnień do tej operacji.";
+  }
+  if (message.includes("duplicate key")) return "Taki wpis już istnieje.";
+  return message;
+}
+
 function check<T>(result: { data: T; error: { message: string } | null }): T {
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) throw new Error(errorMessage(result.error.message));
   return result.data;
 }
 
