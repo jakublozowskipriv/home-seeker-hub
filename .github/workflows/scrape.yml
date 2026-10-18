@@ -27,6 +27,7 @@ jobs:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       HOMESEEKER_PREFERENCES: ${{ secrets.HOMESEEKER_PREFERENCES }}
+      OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
       MAX_DETAILS: ${{ inputs.max_details || '150' }}
     steps:
       - uses: actions/checkout@v4

@@ -105,6 +105,55 @@ runs = Table(
     Column("stats", JsonType),
 )
 
+# --- Web app (shared with family): who has access and what they did -----------------
+
+members = Table(
+    "members",
+    metadata,
+    Column("email", String, primary_key=True),  # always lower-case
+    Column("role", String, nullable=False, default="member"),  # owner | member
+    Column("display_name", String),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+listing_status = Table(
+    "listing_status",
+    metadata,
+    Column("listing_id", String, ForeignKey("listings.id", ondelete="CASCADE"), primary_key=True),
+    # new | interesting | viewing | seen | rejected | offer
+    Column("status", String, nullable=False),
+    Column("note", Text),
+    Column("viewing_at", DateTime(timezone=True)),
+    Column("updated_by", String),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
+reactions = Table(
+    "reactions",
+    metadata,
+    Column("listing_id", String, ForeignKey("listings.id", ondelete="CASCADE"), primary_key=True),
+    Column("email", String, primary_key=True),
+    Column("reaction", String, nullable=False),  # up | down
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+comments = Table(
+    "comments",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("listing_id", String, ForeignKey("listings.id", ondelete="CASCADE"), index=True),
+    Column("author_email", String, nullable=False),
+    Column("body", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+member_visits = Table(
+    "member_visits",
+    metadata,
+    Column("email", String, primary_key=True),
+    Column("last_visit_at", DateTime(timezone=True), nullable=False),
+)
+
 LISTING_FIELDS = [
     "source",
     "source_id",
@@ -157,11 +206,25 @@ def make_engine(url: str | None = None) -> Engine:
 def init_db(engine: Engine) -> None:
     metadata.create_all(engine)
     if engine.dialect.name == "postgresql":
-        # Supabase exposes the public schema over its REST API: lock tables down by
-        # default; the web app gets explicit policies later.
+        # Supabase exposes the public schema over its REST API: every table has row level
+        # security, and only the web app policies below open it up - to listed members.
+        from .webaccess import apply_policies
+
         with engine.begin() as conn:
             for table in metadata.sorted_tables:
                 conn.execute(text(f'alter table "{table.name}" enable row level security'))
+            apply_policies(conn)
+
+
+def seed_owner(engine: Engine, email: str) -> None:
+    """Make sure the owner (from the OWNER_EMAIL secret) can sign in to the web app."""
+    email = email.strip().lower()
+    with engine.begin() as conn:
+        row = conn.execute(select(members.c.role).where(members.c.email == email)).first()
+        if row is None:
+            conn.execute(insert(members).values(email=email, role="owner", created_at=now()))
+        elif row[0] != "owner":
+            conn.execute(update(members).where(members.c.email == email).values(role="owner"))
 
 
 def _to_row(listing: Listing) -> dict[str, Any]:

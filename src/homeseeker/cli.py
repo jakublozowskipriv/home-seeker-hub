@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from .db import Store, init_db, make_engine
+from .db import Store, init_db, make_engine, seed_owner
 from .http import Http, dig
 from .notify.telegram import Telegram, TelegramError
 from .pipeline import run
@@ -56,6 +56,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Dry run: in-memory database, nothing persists, no notifications.
     engine = make_engine("sqlite://") if args.dry_run else make_engine()
     init_db(engine)
+    if owner := os.environ.get("OWNER_EMAIL"):
+        seed_owner(engine, owner)
     store = Store(engine)
     prefs = load_preferences(store.get_setting("preferences"))
     http = Http(delay=args.delay)
