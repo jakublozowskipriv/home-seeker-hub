@@ -34,4 +34,4 @@ jobs:
         continue-on-error: true
         run: homeseeker probe olx
       - name: Dry run
-        run: homeseeker run --dry-run --max-pages 2 --max-details 30
+        run: homeseeker run --dry-run --max-pages 40 --max-details 20
