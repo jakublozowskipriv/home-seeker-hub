@@ -436,6 +436,10 @@ class Store:
     # --- events
     def upsert_event(self, event: dict) -> bool:
         """Insert or update a scraped event by external_id. Returns True when new."""
+        event = {
+            k: (v.astimezone(UTC) if isinstance(v, datetime) and v.tzinfo else v)
+            for k, v in event.items()
+        }  # stored in UTC (SQLite keeps no time zone)
         with self.engine.begin() as conn:
             row = conn.execute(
                 select(events.c.id).where(events.c.external_id == event["external_id"])
@@ -445,6 +449,22 @@ class Store:
                 return True
             conn.execute(update(events).where(events.c.id == row[0]).values(**event))
             return False
+
+    def event_ids(self) -> set[str]:
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(events.c.external_id).where(events.c.external_id.is_not(None))
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    def verdicts(self, listing_ids: list[str]) -> dict[str, str]:
+        if not listing_ids:
+            return {}
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(listings.c.id, listings.c.verdict).where(listings.c.id.in_(listing_ids))
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
     def calendar_entries(self, since: datetime) -> tuple[list[Any], list[Any]]:
         """(events, viewings with their listing) starting after `since`."""

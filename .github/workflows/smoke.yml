@@ -21,9 +21,6 @@ jobs:
       - run: pip install -e .
       - name: Diagnose portal access
         run: homeseeker diagnose
-      - name: Diagnose event sources
-        continue-on-error: true
-        run: homeseeker diagnose events
       - name: Probe Otodom structure
         continue-on-error: true
         run: homeseeker probe otodom

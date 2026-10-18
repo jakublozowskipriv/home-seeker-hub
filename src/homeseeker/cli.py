@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .db import Store, init_db, make_engine, seed_owner
 from .http import Http, dig
+from .ics import publish as publish_calendar
 from .notify.telegram import Telegram, TelegramError
 from .pipeline import run
 from .preferences import load_preferences
@@ -65,10 +66,21 @@ def cmd_run(args: argparse.Namespace) -> int:
     telegram = None if args.dry_run else _telegram(store)
     try:
         stats = run(
-            store, sources, prefs, telegram, max_pages=args.max_pages, max_details=args.max_details
+            store,
+            sources,
+            prefs,
+            telegram,
+            max_pages=args.max_pages,
+            max_details=args.max_details,
+            fairs_http=http,
         )
     finally:
         http.close()
+    if not args.dry_run:
+        try:
+            publish_calendar(store)
+        except Exception:  # the calendar is a bonus: never fail the run because of it
+            log.exception("Calendar publishing failed")
     report = build_report(store, stats)
     print(report)
     _write_summary(report, args.report)

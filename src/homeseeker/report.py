@@ -58,6 +58,7 @@ def build_report(store: Store, stats: RunStats, top: int = 15) -> str:
         f"{stats.details_failed} / {stats.details_deferred} |"
     )
     lines.append(f"| Powiadomienia | {stats.notified} |")
+    lines.append(f"| Nowe wydarzenia (dni otwarte, targi) | {stats.events_new} |")
     if stats.incomplete_sources:
         lines.append(f"| Niepełne źródła | {stats.incomplete_sources} |")
     if stats.errors:

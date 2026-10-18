@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.6",
     "PyYAML>=6",
     "SQLAlchemy>=2.0",
+    "tzdata",
     "psycopg[binary]>=3.1",
 ]
 

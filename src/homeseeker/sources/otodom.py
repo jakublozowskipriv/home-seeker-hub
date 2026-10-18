@@ -131,10 +131,23 @@ def parse_search_item(item: dict) -> Listing | None:
     )
     if rent := to_float(dig(item, "rentPrice", "value")):
         listing.raw["rent"] = rent
-    for key in ("openDays", "unifiedOpenDays"):
-        if item.get(key):
-            listing.raw["open_days"] = item[key]
+    if dates := open_day_dates(item):
+        listing.raw["open_days"] = dates
     return listing
+
+
+def open_day_dates(item: dict) -> list[str]:
+    """Dates ("YYYY-MM-DD") of announced open days in a search item."""
+    out: list[str] = []
+    for key in ("unifiedOpenDays", "openDays"):
+        value = item.get(key)
+        values = value if isinstance(value, list) else [value]
+        for v in values:
+            if isinstance(v, dict):
+                v = v.get("date")
+            if isinstance(v, str) and len(v) >= 10 and v[:10] not in out:
+                out.append(v[:10])
+    return out
 
 
 def _quarter_end(delivery: dict | None) -> date | None:
@@ -278,6 +291,8 @@ def apply_details(listing: Listing, ad: dict) -> Listing:
     attributes = {k: v for k, v in (ad.get("attributes") or {}).items() if k in KEEP_ATTRIBUTES}
     listing.raw = {**listing.raw, "attributes": attributes}
     listing.details_fetched = True
+    if isinstance(ad.get("openDay"), dict):
+        listing.raw["open_day"] = ad["openDay"]
 
     # Fill gaps from the description.
     if listing.floor is None:
@@ -324,6 +339,12 @@ class OtodomSource(Source):
             page += 1
         if total_pages > max_pages:
             self.search_complete = False
+
+    def fetch_open_day(self, listing: Listing) -> dict | None:
+        """{"date", "timeFrom", "timeTo"} from the listing page (search results only
+        carry the date)."""
+        ad = dig(self.http.get_next_data(listing.url), "props", "pageProps", "ad") or {}
+        return ad.get("openDay") if isinstance(ad.get("openDay"), dict) else None
 
     def fetch_details(self, listing: Listing) -> Listing:
         data = self.http.get_next_data(listing.url)
