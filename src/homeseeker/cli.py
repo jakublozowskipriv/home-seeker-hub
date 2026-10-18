@@ -126,6 +126,13 @@ def cmd_probe(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diagnose(args: argparse.Namespace) -> int:
+    from .diagnose import diagnose
+
+    diagnose()
+    return 0
+
+
 def cmd_init_db(args: argparse.Namespace) -> int:
     init_db(make_engine())
     print("Database ready.")
@@ -171,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("source", choices=sorted(ALL_SOURCES))
     p.set_defaults(func=cmd_probe)
 
+    sub.add_parser("diagnose", help="check portal reachability").set_defaults(func=cmd_diagnose)
     sub.add_parser("init-db", help="create tables").set_defaults(func=cmd_init_db)
     sub.add_parser("telegram-test", help="send a test message").set_defaults(func=cmd_telegram_test)
 
