@@ -22,7 +22,11 @@ GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
 * **Dojazd** jest na razie *szacowany* z odległości (tramwaj + pieszo). Dokładne czasy
   z rozkładu ZTM Poznań dojdą w kolejnym etapie.
 * Pierwsze uruchomienie wysyła jedno podsumowanie z 10 najlepszymi ofertami; potem tylko
-  nowości i obniżki.
+  nowości i obniżki. Gdy naraz pojawi się więcej niż 15 nowych ofert, przychodzi jedno
+  podsumowanie zamiast lawiny wiadomości. Powiadomienia dotyczą tylko ofert z ceną
+  i sprawdzonymi szczegółami.
+* Inwestycje deweloperskie na Otodom (jeden kafelek = wiele mieszkań) są rozbijane na
+  pojedyncze mieszkania, z terminem oddania z inwestycji.
 
 ## Konfiguracja (jednorazowo, wszystko za darmo)
 

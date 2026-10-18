@@ -103,6 +103,7 @@ def test_bootstrap_waits_for_deferred_details(store, prefs, good_listing):
         complete_search_results = False
 
         def fetch_details(self, listing):
+            listing.details_fetched = True
             return listing
 
     second = copy.deepcopy(good_listing)
@@ -158,3 +159,28 @@ def test_unchanged_rejected_listing_is_not_rewritten(store, prefs, good_listing)
     run(store, [FakeSource([good_listing])], prefs, None)
     stats = run(store, [FakeSource([good_listing])], prefs, None)
     assert stats.statuses == {"unchanged": 1}
+
+
+def test_many_new_listings_are_sent_as_one_digest(store, prefs, good_listing):
+    tg = FakeTelegram()
+    run(store, [FakeSource([])], prefs, tg)  # bootstrap with an empty DB
+    flats = []
+    for i in range(prefs.notifications.max_per_run + 5):
+        flat = copy.deepcopy(good_listing)
+        flat.source_id, flat.area = str(100 + i), 38 + i * 0.5
+        flats.append(flat)
+    tg.messages.clear()
+    stats = run(store, [FakeSource(flats)], prefs, tg)
+    assert len(tg.messages) == 1 and "nowych pasujących ofert" in tg.messages[0][1]
+    assert stats.notified == len(flats)
+    assert store.pending_notifications(["match", "review"]) == []
+
+
+def test_listings_without_price_or_details_are_not_pushed(store, prefs, good_listing):
+    tg = FakeTelegram()
+    run(store, [FakeSource([])], prefs, tg)
+    no_price = copy.deepcopy(good_listing)
+    no_price.source_id, no_price.price = "50", None
+    tg.messages.clear()
+    run(store, [FakeSource([no_price])], prefs, tg)
+    assert tg.messages == []

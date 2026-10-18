@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(days=2)
 # Bump when evaluation rules change, so stored listings get re-evaluated.
 EVALUATION_VERSION = 1
-BOOTSTRAP_DIGEST_SIZE = 10
+DIGEST_SIZE = 10
 
 
 @dataclass
@@ -224,6 +224,18 @@ def _evaluation_from_row(row: Any) -> Evaluation:
     return Evaluation(**data)
 
 
+def _digest(chosen: list[Any], header: str) -> str:
+    lines = [header]
+    for row in chosen[:DIGEST_SIZE]:
+        listing = row_to_listing(row)
+        lines.append(
+            f'• <a href="{listing.url}">{row.score}/100 · '
+            f"{money(listing.price)} · {listing.area:g} m² · "
+            f"{listing.location_text or listing.district or ''}</a>"
+        )
+    return "\n".join(lines)
+
+
 def send_notifications(
     store: Store,
     prefs: Preferences,
@@ -233,10 +245,11 @@ def send_notifications(
 ) -> None:
     pending = store.pending_notifications(notifiable_verdicts(prefs))
     # Keep only the best listing of each duplicate group, and skip groups already sent.
+    already_sent = store.notified_groups() if pending else set()
     chosen, groups = [], set()
     for row in pending:
         group = row.group_id or row.id
-        if group in groups or (row.group_id and store.group_notified(row.group_id)):
+        if group in groups or group in already_sent:
             continue
         groups.add(group)
         chosen.append(row)
@@ -252,38 +265,36 @@ def send_notifications(
             # Initial indexing still in progress: collect silently, digest comes at the end.
             log.info("Bootstrap in progress (%s detail pages deferred)", stats.details_deferred)
             return
-        if bootstrap:
-            lines = [
-                f"👋 <b>Home Seeker Hub działa!</b> Znalazłem {len(chosen)} pasujących "
-                f"ofert. Oto {min(len(chosen), BOOTSTRAP_DIGEST_SIZE)} najlepszych - "
-                "od teraz będę pisać tylko o nowych ofertach i obniżkach cen."
-            ]
-            for row in chosen[:BOOTSTRAP_DIGEST_SIZE]:
-                listing = row_to_listing(row)
-                lines.append(
-                    f'• <a href="{listing.url}">{row.score}/100 · '
-                    f"{money(listing.price)} · {listing.area:g} m² · "
-                    f"{listing.location_text or listing.district or ''}</a>"
+        if bootstrap or len(chosen) > prefs.notifications.max_per_run:
+            # First run, or a big batch at once (e.g. a newly covered group of listings):
+            # one summary instead of a flood of messages.
+            if bootstrap:
+                header = (
+                    f"👋 <b>Home Seeker Hub działa!</b> Znalazłem {len(chosen)} pasujących "
+                    f"ofert. Oto {min(len(chosen), DIGEST_SIZE)} najlepszych - od teraz będę "
+                    "pisać tylko o nowych ofertach i obniżkach cen."
                 )
-            telegram.send_text("\n".join(lines))
-            for row in pending:
-                store.mark_notified(row.id, row.price)
-            store.set_setting("bootstrapped", now().isoformat())
+            else:
+                header = (
+                    f"🆕 <b>{len(chosen)} nowych pasujących ofert</b>. "
+                    f"Oto {min(len(chosen), DIGEST_SIZE)} najlepszych:"
+                )
+            if chosen:
+                telegram.send_text(_digest(chosen, header))
+            store.mark_notified_many(pending)
+            if bootstrap:
+                store.set_setting("bootstrapped", now().isoformat())
             stats.notified += len(chosen)
             return
 
-        limit = prefs.notifications.max_per_run
-        for row in chosen[:limit]:
+        for row in chosen:
             listing, ev = row_to_listing(row), _evaluation_from_row(row)
             telegram.send_listing(
                 listing_html(listing, ev), listing.images[0] if listing.images else None
             )
-            store.mark_notified(row.id, row.price)
             stats.notified += 1
-        if len(chosen) > limit:
-            telegram.send_text(
-                f"…i jeszcze {len(chosen) - limit} ofert - wyślę je przy kolejnym przebiegu."
-            )
+        # Duplicates of what was just sent count as notified too.
+        store.mark_notified_many(pending)
         for drop in drops:
             prefix = f"📉 Obniżka z {money(drop.old_price)}"
             telegram.send_listing(

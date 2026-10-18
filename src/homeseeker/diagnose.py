@@ -91,3 +91,94 @@ def diagnose() -> None:
                 print(f"   {client:18} {fn(url)}")
             except Exception as e:  # report everything, this is a diagnostic
                 print(f"   {client:18} ERROR {type(e).__name__}: {str(e)[:150]}")
+
+
+def otodom_pagination() -> None:
+    """Why do later Otodom result pages contain only a handful of items?"""
+    from collections import Counter
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    from .http import Http, dig
+    from .preferences import load_preferences
+    from .sources import otodom
+
+    prefs = load_preferences()
+    http = Http(delay=1.0)
+
+    def with_params(url: str, **changes) -> str:
+        parts = urlsplit(url)
+        query = dict(parse_qsl(parts.query))
+        for key, value in changes.items():
+            if value is None:
+                query.pop(key, None)
+            else:
+                query[key] = value
+        return urlunsplit(parts._replace(query=urlencode(query)))
+
+    seen: set = set()
+    experiments = [
+        ("latest", {}, [1, 2, 6, 12, 16, 22, 31]),
+        ("default-sort", {"by": None, "direction": None}, [1, 12, 22]),
+        ("limit36", {"limit": "36"}, [12, 24, 40]),
+        ("no-rooms-filter", {"roomsNumber": None}, [1, 12]),
+    ]
+    try:
+        for name, changes, pages in experiments:
+            seen.clear()
+            for page in pages:
+                url = with_params(otodom.search_url(prefs, page), **changes)
+                try:
+                    data = http.get_next_data(url)
+                except Exception as e:  # diagnostic: report and go on
+                    print(f"[{name}] page {page}: ERROR {e}")
+                    continue
+                search = dig(data, "props", "pageProps", "data", "searchAds") or {}
+                items = search.get("items") or []
+                ids = [i.get("id") for i in items]
+                overlap = len(set(ids) & seen)
+                seen.update(ids)
+                estates = Counter(i.get("estate") for i in items)
+                promoted = sum(1 for i in items if i.get("isPromoted"))
+                units = sum(i.get("investmentUnitsNumber") or 0 for i in items)
+                print(
+                    f"[{name}] page {page}: items={len(items)} unique={len(set(ids))} "
+                    f"overlap_prev={overlap} estates={dict(estates)} promoted={promoted} "
+                    f"investment_units={units} pagination={search.get('pagination')}"
+                )
+                if name == "latest" and page == 12:
+                    print("   searchAds keys:", list(search.keys()))
+                    print("   data keys:", list(dig(data, "props", "pageProps", "data") or {}))
+    finally:
+        http.close()
+
+
+def otodom_investment() -> None:
+    """Print the structure of an Otodom investment page and its list of units."""
+    from .cli import _key_tree
+    from .http import Http, dig
+    from .preferences import load_preferences
+    from .sources import otodom
+
+    prefs = load_preferences()
+    http = Http(delay=1.0)
+    try:
+        investment = None
+        for page in (12, 16, 22):
+            data = http.get_next_data(otodom.search_url(prefs, page))
+            items = dig(data, "props", "pageProps", "data", "searchAds", "items") or []
+            investment = next((i for i in items if i.get("estate") == "INVESTMENT"), None)
+            if investment:
+                break
+        if not investment:
+            print("no investment found")
+            return
+        print("\n".join(_key_tree(investment, "inv", max_depth=3)))
+        url = f"{otodom.BASE}/pl/oferta/{investment['slug']}"
+        ad = dig(http.get_next_data(url), "props", "pageProps", "ad") or {}
+        print("ad keys:", list(ad))
+        for key in ("paginatedUnits", "unitGroups"):
+            print("\n".join(_key_tree(ad.get(key), f"ad.{key}", max_depth=6)[:120]))
+        print("\n".join(_key_tree(ad.get("attributes"), "ad.attributes", max_depth=2)))
+        print("ad.location.coordinates:", dig(ad, "location", "coordinates"))
+    finally:
+        http.close()

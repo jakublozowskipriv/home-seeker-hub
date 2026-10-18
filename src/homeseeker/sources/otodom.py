@@ -24,6 +24,8 @@ ELEVATOR_TOKENS = {"lift", "winda", "elevator"}
 # Otodom gives exact coordinates or a circle (radius in metres) around the address.
 APPROX_RADIUS_M = 1000
 # Structured attributes kept in `raw` (the rest is tracking noise).
+# Otodom lists at most this many flats of an investment within one search tile.
+RELATED_ADS_CAP = 72
 KEEP_ATTRIBUTES = {
     "build_year",
     "building_floors_num",
@@ -135,6 +137,46 @@ def parse_search_item(item: dict) -> Listing | None:
     return listing
 
 
+def _quarter_end(delivery: dict | None) -> date | None:
+    year, quarter = to_int(dig(delivery, "year")), to_int(dig(delivery, "quarter"))
+    if not year:
+        return None
+    month = 3 * (quarter or 4)
+    return date(year, month, 30 if month in (6, 9) else 31)
+
+
+def parse_investment_units(item: dict) -> list[Listing]:
+    """A developer investment is one search tile; its matching flats are in `relatedAds`."""
+    related = item.get("relatedAds") or []
+    if len(related) >= RELATED_ADS_CAP:
+        log.warning(
+            "Otodom investment %s: %s units listed, more may exist (%s total)",
+            item.get("slug"),
+            len(related),
+            item.get("investmentUnitsNumber"),
+        )
+    completion = _quarter_end(item.get("investmentEstimatedDelivery"))
+    district, loc_text = _location_text(item.get("location"))
+    units = []
+    for unit in related:
+        listing = parse_search_item(unit)
+        if listing is None:
+            continue
+        listing.market = Market.PRIMARY
+        listing.completion_date = completion
+        listing.district = listing.district or district
+        listing.location_text = listing.location_text or loc_text
+        listing.raw["investment"] = {
+            "id": item.get("id"),
+            "title": item.get("title"),
+            "url": f"{BASE}/pl/inwestycja/{item.get('slug')}",
+            "state": item.get("investmentState"),
+            "units": item.get("investmentUnitsNumber"),
+        }
+        units.append(listing)
+    return units
+
+
 def _tokens(ad: dict) -> tuple[set[str], dict[str, list[str]]]:
     """Collect structured values: {key: [values]} from target/characteristics/info blocks."""
     values: dict[str, list[str]] = {}
@@ -208,14 +250,17 @@ def apply_details(listing: Listing, ad: dict) -> Listing:
     else:
         listing.ownership = textparse.detect_ownership(description)
 
+    previous_completion = listing.completion_date
     if listing.market == Market.PRIMARY:
         free_from = _first(values, "free_from")
         try:
             listing.completion_date = date.fromisoformat(free_from[:10]) if free_from else None
         except ValueError:
             listing.completion_date = None
-        listing.completion_date = listing.completion_date or textparse.detect_completion(
-            description
+        listing.completion_date = (
+            listing.completion_date
+            or textparse.detect_completion(description)
+            or previous_completion
         )
 
     location = ad.get("location") or {}
@@ -261,10 +306,21 @@ class OtodomSource(Source):
                 return
             total_pages = to_int(dig(search_ads, "pagination", "totalPages")) or 1
             items = search_ads.get("items") or []
-            log.info("Otodom page %s/%s: %s items", page, total_pages, len(items))
+            units = 0
             for item in items:
-                if listing := parse_search_item(item):
+                if item.get("estate") == "INVESTMENT":
+                    for unit in parse_investment_units(item):
+                        units += 1
+                        yield unit
+                elif listing := parse_search_item(item):
                     yield listing
+            log.info(
+                "Otodom page %s/%s: %s items, %s investment units",
+                page,
+                total_pages,
+                len(items),
+                units,
+            )
             page += 1
         if total_pages > max_pages:
             self.search_complete = False

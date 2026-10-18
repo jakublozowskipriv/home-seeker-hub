@@ -182,3 +182,28 @@ def test_olx_skips_otodom_crossposts_and_flags_approx_coords():
     assert olx.parse_offer({**OLX_OFFER, "url": "https://www.otodom.pl/pl/oferta/x"}) is None
     approx = olx.parse_offer({**OLX_OFFER, "map": {"lat": 52.4, "lon": 16.9, "radius": 2}})
     assert approx.coords_approximate is True
+
+
+def test_otodom_investment_units():
+    investment = {
+        "id": 68238735,
+        "slug": "unii-lubelskiej-ID4Ck0L",
+        "title": "Unii Lubelskiej",
+        "estate": "INVESTMENT",
+        "investmentEstimatedDelivery": {"quarter": 3, "year": 2028},
+        "investmentState": "IN_BUILDING",
+        "investmentUnitsNumber": 284,
+        "location": OTODOM_ITEM["location"],
+        "relatedAds": [
+            {**OTODOM_ITEM, "id": 1, "slug": "unit-1-ID1", "location": None},
+            {**OTODOM_ITEM, "id": 2, "slug": "unit-2-ID2"},
+        ],
+    }
+    units = otodom.parse_investment_units(investment)
+    assert [u.id for u in units] == ["otodom:1", "otodom:2"]
+    first = units[0]
+    assert first.market == Market.PRIMARY
+    assert first.completion_date.isoformat() == "2028-09-30"
+    assert first.district == "Jeżyce"  # taken from the investment
+    assert first.raw["investment"]["url"].endswith("/pl/inwestycja/unii-lubelskiej-ID4Ck0L")
+    assert otodom.parse_search_item(investment) is None
