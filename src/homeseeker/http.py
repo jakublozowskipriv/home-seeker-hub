@@ -1,4 +1,8 @@
-"""Polite HTTP client with retries and a delay between requests."""
+"""Polite HTTP client with retries and a delay between requests.
+
+Otodom and OLX sit behind CloudFront rules that reject non-browser TLS fingerprints,
+so requests go through curl_cffi impersonating Chrome.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +13,8 @@ import re
 import time
 from typing import Any
 
-import httpx
+from curl_cffi import requests as creq
+from curl_cffi.requests.exceptions import RequestException
 
 log = logging.getLogger(__name__)
 
@@ -32,14 +37,11 @@ class Http:
         self.delay = delay
         self.retries = retries
         self._last = 0.0
-        self.client = httpx.Client(
+        # The impersonation profile sets a matching User-Agent and browser headers.
+        self.client = creq.Session(
+            impersonate="chrome",
             timeout=timeout,
-            follow_redirects=True,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8",
-                "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-            },
+            headers={"Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8"},
         )
         self.requests = 0
 
@@ -49,14 +51,14 @@ class Http:
             time.sleep(pause)
         self._last = time.monotonic()
 
-    def get(self, url: str, **kwargs: Any) -> httpx.Response:
+    def get(self, url: str, **kwargs: Any) -> creq.Response:
         last_error: Exception | None = None
         for attempt in range(self.retries):
             self._wait()
             self.requests += 1
             try:
                 resp = self.client.get(url, **kwargs)
-            except httpx.TransportError as e:
+            except RequestException as e:
                 last_error = e
             else:
                 if resp.status_code == 200:
