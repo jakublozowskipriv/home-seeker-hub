@@ -78,6 +78,16 @@ POLICIES: list[tuple[str, str, str, str | None, str | None]] = [
         f"{MEMBER} and created_by = {ME} and source = 'manual'",
     ),
     ("events", "creator or owner removes", "delete", f"created_by = {ME} or {OWNER}", None),
+    # One shared checklist per listing: every member ticks items, signed with their e-mail.
+    ("viewing_checklists", "members read", "select", MEMBER, None),
+    ("viewing_checklists", "members add", "insert", None, f"{MEMBER} and updated_by = {ME}"),
+    (
+        "viewing_checklists",
+        "members edit",
+        "update",
+        MEMBER,
+        f"{MEMBER} and updated_by = {ME}",
+    ),
     ("member_visits", "members read", "select", MEMBER, None),
     ("member_visits", "own add", "insert", None, f"{MEMBER} and email = {ME}"),
     ("member_visits", "own edit", "update", f"email = {ME}", f"email = {ME}"),
@@ -87,7 +97,8 @@ GRANTS = [
     "grant select on public.listings, public.price_history, public.runs to authenticated",
     "grant select, insert, update on public.settings to authenticated",
     "grant select, insert, update, delete on public.members, public.listing_status, "
-    "public.reactions, public.comments, public.member_visits, public.events to authenticated",
+    "public.reactions, public.comments, public.member_visits, public.events, "
+    "public.viewing_checklists to authenticated",
     "grant usage, select on sequence public.comments_id_seq, public.events_id_seq to authenticated",
 ]
 

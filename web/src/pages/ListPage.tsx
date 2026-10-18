@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useCompare } from "../compare";
 import { ListingCard } from "../components/ListingCard";
 import { useData } from "../data";
 import {
@@ -26,6 +28,7 @@ export function ListPage() {
   const { grouped, statuses, reactions, commentCounts, members, lastVisit, loading, error } =
     useData();
   const [filters, setFilters] = useState<Filters>(loadFilters);
+  const compare = useCompare();
 
   function update(change: Partial<Filters>) {
     const next = { ...filters, ...change };
@@ -80,6 +83,11 @@ export function ListPage() {
       </div>
       {!loading && items.length === 0 && (
         <p className="center muted">Brak ofert dla tych filtrów.</p>
+      )}
+      {compare.length > 0 && (
+        <Link to="/porownaj" className="compare-bar button">
+          ⚖️ Porównaj wybrane ({compare.length})
+        </Link>
       )}
     </div>
   );

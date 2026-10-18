@@ -1,5 +1,5 @@
 import type {
-  Leg, Listing, ListingStatus, Member, Parcel, Reaction, StatusKey, Verdict,
+  Leg, Listing, ListingStatus, Member, Parcel, Reaction, RedFlag, StatusKey, Verdict,
 } from "./api/types";
 
 export const STATUS_LABELS: Record<StatusKey, string> = {
@@ -75,6 +75,36 @@ export function geoportalUrl(parcel: Parcel): string {
 }
 
 export const EKW_URL = "https://przegladarka-ekw.ms.gov.pl/eukw_prz/KsiegiWieczyste/wyszukiwanieKW";
+
+/** Median price per m² by district (from all stored listings, at least 8 per district). */
+export function districtMedians(listings: Listing[]): Map<string, number> {
+  const by = new Map<string, number[]>();
+  for (const l of listings) {
+    if (!l.district || !l.price_per_m2) continue;
+    const key = l.district.toLowerCase();
+    by.set(key, [...(by.get(key) ?? []), l.price_per_m2]);
+  }
+  const out = new Map<string, number>();
+  for (const [key, values] of by) {
+    if (values.length < 8) continue;
+    values.sort((a, b) => a - b);
+    const mid = values.length >> 1;
+    out.set(key, values.length % 2 ? values[mid]! : (values[mid - 1]! + values[mid]!) / 2);
+  }
+  return out;
+}
+
+/** Red flags from the description, plus a suspiciously low price for the district. */
+export function redFlags(l: Listing, medians: Map<string, number>): RedFlag[] {
+  const flags = [...(l.evaluation?.red_flags ?? [])];
+  const median = l.district ? medians.get(l.district.toLowerCase()) : undefined;
+  if (median && l.price_per_m2 && l.price_per_m2 < median * 0.75) {
+    const below = Math.round((1 - l.price_per_m2 / median) * 100);
+    flags.push({ level: "high", text: `cena za m² o ${below}% niższa niż mediana w dzielnicy ` +
+      `(${money(median)}/m²) – zapytaj, dlaczego tak tanio` });
+  }
+  return flags;
+}
 
 export function sourceName(source: string): string {
   return { otodom: "Otodom", olx: "OLX" }[source] ?? source;

@@ -5,6 +5,7 @@ import type { Me } from "./api/types";
 import { DataProvider, useData } from "./data";
 import { relativeTime } from "./format";
 import { AccessPage } from "./pages/AccessPage";
+import { ComparePage } from "./pages/ComparePage";
 import { DetailPage } from "./pages/DetailPage";
 import { EventsPage } from "./pages/EventsPage";
 import { ListPage } from "./pages/ListPage";
@@ -47,6 +48,7 @@ const router = createHashRouter([
       { index: true, element: <ListPage /> },
       { path: "oferta/:id", element: <DetailPage /> },
       { path: "mapa", element: <MapPage /> },
+      { path: "porownaj", element: <ComparePage /> },
       { path: "wydarzenia", element: <EventsPage /> },
       { path: "preferencje", element: <PreferencesPage /> },
       { path: "dostep", element: <AccessPage /> },

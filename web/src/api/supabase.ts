@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
-  Api, CalendarEvent, Comment, Listing, ListingStatus, Me, Member, NewEvent, PricePoint, Reaction,
-  ReactionKey, StatusKey,
+  Api, CalendarEvent, Checklist, ChecklistItem, Comment, Listing, ListingStatus, Me, Member,
+  NewEvent, PricePoint, Reaction, ReactionKey, StatusKey,
 } from "./types";
 
 /** Columns for the list view: everything except the heavy description / raw data. */
@@ -212,6 +212,19 @@ export class SupabaseApi implements Api {
   async calendarUrl(): Promise<string | null> {
     const rows = check(await this.db.from("settings").select("value").eq("key", "calendar_url"));
     return (rows?.[0] as { value: string } | undefined)?.value ?? null;
+  }
+
+  async checklist(listingId: string): Promise<Checklist | null> {
+    const rows = check(await this.db.from("viewing_checklists").select("*")
+      .eq("listing_id", listingId)) as Checklist[];
+    return rows[0] ?? null;
+  }
+
+  async saveChecklist(listingId: string, items: Record<string, ChecklistItem>): Promise<void> {
+    check(await this.db.from("viewing_checklists").upsert({
+      listing_id: listingId, items, updated_by: await this.email(),
+      updated_at: new Date().toISOString(),
+    }));
   }
 
   async preferences(): Promise<Record<string, unknown> | null> {

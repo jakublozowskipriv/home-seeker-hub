@@ -89,3 +89,12 @@ def test_district_aliases():
         "Łazarz",
     )
     assert districts.classify("Poznań, Wildeczki", ["Wilda"], [], []) == (None, None)
+
+
+def test_mortgage_payment_and_red_flags(prefs, good_listing):
+    good_listing.price = 600_000
+    good_listing.description = "Sprzedaż z najemcą, umowa do końca roku."
+    ev = evaluate(good_listing, prefs)
+    assert ev.monthly_payment == 3034  # 480 000 zł loan, 6.5%, 30 years
+    assert [f["level"] for f in ev.red_flags] == ["high"]
+    assert ev.verdict == Verdict.MATCH  # flags inform, they do not reject

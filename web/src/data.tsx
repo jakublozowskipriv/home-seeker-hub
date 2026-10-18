@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { api } from "./api";
 import type { Listing, ListingStatus, Me, Member, Reaction } from "./api/types";
-import { groupDuplicates, type Grouped } from "./format";
+import { districtMedians, groupDuplicates, type Grouped } from "./format";
 
 interface Data {
   me: Me;
@@ -10,6 +10,8 @@ interface Data {
   listings: Listing[];
   grouped: Grouped[];
   byId: Map<string, Listing>;
+  /** Median price per m² by district (lower-case), for "suspiciously cheap" flags. */
+  medians: Map<string, number>;
   statuses: Map<string, ListingStatus>;
   reactions: Reaction[];
   commentCounts: Record<string, number>;
@@ -73,6 +75,7 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
       listings,
       grouped: groupDuplicates(active),
       byId: new Map(listings.map((l) => [l.id, l])),
+      medians: districtMedians(listings),
       statuses: new Map(statusRows.map((s) => [s.listing_id, s])),
       reactions,
       commentCounts,

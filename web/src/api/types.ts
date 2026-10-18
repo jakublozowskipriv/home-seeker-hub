@@ -19,6 +19,27 @@ export interface Evaluation {
   nearby?: Nearby;
   /** Land register (księga wieczysta) number found in the description. */
   land_register?: string | null;
+  red_flags?: RedFlag[];
+  /** Mortgage instalment with the preferred assumptions (Preferencje → kredyt). */
+  monthly_payment?: number | null;
+}
+
+export interface RedFlag {
+  level: "high" | "info";
+  text: string;
+}
+
+export interface ChecklistItem {
+  done: boolean;
+  note?: string;
+}
+
+/** Shared viewing checklist of a listing (one per listing, edited by every member). */
+export interface Checklist {
+  listing_id: string;
+  items: Record<string, ChecklistItem>;
+  updated_by: string | null;
+  updated_at: string;
 }
 
 export type Leg =
@@ -176,6 +197,9 @@ export interface Api {
   deleteEvent(id: number): Promise<void>;
   /** Subscription URL of the calendar feed (owner only; null when not published yet). */
   calendarUrl(): Promise<string | null>;
+  // viewing checklist
+  checklist(listingId: string): Promise<Checklist | null>;
+  saveChecklist(listingId: string, items: Record<string, ChecklistItem>): Promise<void>;
   preferences(): Promise<Record<string, unknown> | null>;
   savePreferences(prefs: Record<string, unknown>): Promise<void>;
 }

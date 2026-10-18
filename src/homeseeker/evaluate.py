@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from . import districts, geo, textparse
+from . import districts, finance, geo, redflags, textparse
 from .models import Heating, Listing, Market, Ownership
 from .preferences import Preferences
 
@@ -39,6 +39,8 @@ class Evaluation:
     commute_routes: dict[str, list[dict]] = field(default_factory=dict)
     nearby: dict = field(default_factory=dict)  # stops and shops within walking distance
     land_register: str | None = None  # księga wieczysta number found in the description
+    red_flags: list[dict] = field(default_factory=list)  # {"level": high|info, "text"}
+    monthly_payment: float | None = None  # mortgage instalment with the preferred assumptions
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -101,6 +103,13 @@ def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> 
         warnings.append("nieznane ogrzewanie")
     if listing.ownership == Ownership.COOPERATIVE:
         warnings.append("spółdzielcze własnościowe")
+
+    # --- mortgage instalment: information only, the own contribution is still open
+    payment = None
+    if listing.price:
+        m = prefs.mortgage
+        loan = listing.price * (1 - m.down_payment_percent / 100)
+        payment = round(finance.monthly_payment(loan, m.interest_rate_percent, m.years))
 
     # --- market and completion date
     if listing.market and listing.market.value not in prefs.markets:
@@ -192,6 +201,8 @@ def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> 
         commute_routes=routes,
         nearby=nearby,
         land_register=textparse.find_land_register(listing.description),
+        red_flags=redflags.find_red_flags(listing.title, listing.description),
+        monthly_payment=payment,
     )
 
 

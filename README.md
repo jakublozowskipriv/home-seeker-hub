@@ -138,6 +138,24 @@ publicznym buckecie Storage pod losową, trudną do zgadnięcia nazwą; link zob
 w aplikacji (Wydarzenia → Subskrypcja kalendarza) i dodasz go w kalendarzu iPhone'a lub
 Google.
 
+## Koszty, czerwone flagi, porównanie, checklista
+
+* **Kalkulator kosztów** na stronie oferty: wkład własny, oprocentowanie i okres (domyślne
+  w Preferencjach, w kalkulatorze zmienisz je dla danej oferty), rata na tle Twojego
+  zakresu, ile wkładu trzeba, żeby rata się zmieściła, rata + czynsz, koszty jednorazowe
+  (PCC 2% na rynku wtórnym – z opcją zwolnienia dla pierwszego mieszkania, notariusz według
+  stawek maksymalnych, sąd, prowizja biura) i gotówka potrzebna na start. To szacunek –
+  oprocentowanie sprawdź w aktualnych ofertach banków.
+* **Czerwone flagi** wyszukiwane w opisie: licytacja, sprzedaż udziału, „tylko gotówka”,
+  brak księgi wieczystej, lokal użytkowy lub inwestycyjny (condo), najemca, zadłużenie,
+  dożywocie, TBS; informacyjnie: służebność, użytkowanie wieczyste, remont. Do tego cena za
+  m² wyraźnie (o ponad 25%) niższa niż mediana w dzielnicy. Flaga to powód, żeby zapytać –
+  oferta nie jest przez nią odrzucana. 🚩 widać na liście, w szczegółach i na Telegramie.
+* **Porównanie**: przycisk „⚖️ Porównaj” na stronie oferty (do 4 ofert), tabela obok siebie
+  z wyróżnieniem najlepszych wartości.
+* **Checklista oglądania**: wspólna dla wszystkich osób z dostępem – dokumenty, budynek,
+  mieszkanie, okolica, z notatkami do każdego punktu.
+
 ## Preferencje
 
 Domyślne preferencje są w [`config/preferences.default.yaml`](config/preferences.default.yaml).
@@ -175,4 +193,4 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
       edycja preferencji, dostęp dla rodziny
 - [x] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
 - [x] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
-- [ ] Etap 5: kalkulator kredytu, czerwone flagi (LLM), porównywarka, checklista oglądania
+- [x] Etap 5: kalkulator kredytu, czerwone flagi, porównywarka, checklista oglądania

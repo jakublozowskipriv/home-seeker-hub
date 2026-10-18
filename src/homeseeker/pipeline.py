@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(days=2)
 FAIRS_CHECK_EVERY = timedelta(hours=20)
 # Bump when evaluation rules change, so stored listings get re-evaluated.
-EVALUATION_VERSION = 2
+EVALUATION_VERSION = 3
 DIGEST_SIZE = 10
 PARCELS_PER_RUN = 80
 

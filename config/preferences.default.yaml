@@ -10,6 +10,11 @@ budget:
   monthly_payment_min: 2600
   monthly_payment_max: 3200
 
+mortgage:                    # założenia do szacunku raty (w aplikacji zmienisz je dla oferty)
+  down_payment_percent: 20   # wkład własny
+  interest_rate_percent: 6.5 # oprocentowanie (WIBOR + marża) – sprawdź aktualne oferty banków
+  years: 30
+
 area:
   min: 38
   max: 50

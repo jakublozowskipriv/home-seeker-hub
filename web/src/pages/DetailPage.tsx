@@ -5,14 +5,17 @@ import type {
   CalendarEvent, Comment, Listing, Parcel, PricePoint, StatusKey,
 } from "../api/types";
 import { formatWhen } from "../calendar";
+import { toggleCompare, useCompare } from "../compare";
 import { AddToCalendar } from "../components/AddToCalendar";
+import { CostCalculator } from "../components/CostCalculator";
 import { Avatars, Photo, ScoreBadge } from "../components/ListingCard";
 import { MapView } from "../components/MapView";
+import { ViewingChecklist } from "../components/ViewingChecklist";
 import { useData } from "../data";
 import {
   appleMapsUrl, commuteEntries, distance, EKW_URL, floorText, geoportalUrl, googleMapsUrl,
-  HEATING_LABELS, isEstimate, legText, money, personName, reactionSummary, relativeTime,
-  routeLines, shortDestination, sourceName, STATUS_LABELS, VERDICT_LABELS,
+  HEATING_LABELS, isEstimate, legText, money, personName, reactionSummary, redFlags,
+  relativeTime, routeLines, shortDestination, sourceName, STATUS_LABELS, VERDICT_LABELS,
 } from "../format";
 import { destinations, loadPrefs, type Prefs } from "../preferences";
 
@@ -246,7 +249,8 @@ function Comments({ listingId }: { listingId: string }) {
 
 export function DetailPage() {
   const { id = "" } = useParams();
-  const { byId, grouped } = useData();
+  const { byId, grouped, medians } = useData();
+  const compare = useCompare();
   const [listing, setListing] = useState<Listing | null | undefined>(byId.get(id));
   const [history, setHistory] = useState<PricePoint[]>([]);
   const [prefs, setPrefs] = useState<Prefs | null>(null);
@@ -265,6 +269,7 @@ export function DetailPage() {
   const ev = l.evaluation;
   const others = grouped.find((g) => g.listing.id === l.id)?.duplicates ?? [];
   const investment = (l.raw?.investment ?? null) as { title?: string; url?: string } | null;
+  const flags = redFlags(l, medians);
   const google = googleMapsUrl(l);
   const apple = appleMapsUrl(l);
 
@@ -294,11 +299,17 @@ export function DetailPage() {
             </span>
           ))}
         </div>
-        {ev && (ev.missing.length > 0 || ev.warnings.length > 0 || ev.rejections.length > 0) && (
+        {(flags.length > 0 || (ev && (ev.missing.length > 0 || ev.warnings.length > 0
+          || ev.rejections.length > 0))) && (
           <ul className="notes">
-            {ev.rejections.map((r) => <li key={r}>✖️ {r}</li>)}
-            {ev.missing.map((m) => <li key={m}>❓ do sprawdzenia: {m}</li>)}
-            {ev.warnings.map((w) => <li key={w}>⚠️ {w}</li>)}
+            {flags.map((f) => (
+              <li key={f.text} className={f.level === "high" ? "flag" : ""}>
+                {f.level === "high" ? "🚩" : "ℹ️"} {f.text}
+              </li>
+            ))}
+            {ev?.rejections.map((r) => <li key={r}>✖️ {r}</li>)}
+            {ev?.missing.map((m) => <li key={m}>❓ do sprawdzenia: {m}</li>)}
+            {ev?.warnings.map((w) => <li key={w}>⚠️ {w}</li>)}
           </ul>
         )}
         <div className="links">
@@ -310,6 +321,10 @@ export function DetailPage() {
               {sourceName(o.source)} ↗
             </a>
           ))}
+          <button className={compare.includes(l.id) ? "active" : "ghost"}
+                  onClick={() => toggleCompare(l.id)}>
+            ⚖️ {compare.includes(l.id) ? "W porównaniu" : "Porównaj"}
+          </button>
           {google && <a className="button ghost" href={google} target="_blank" rel="noreferrer">Google Maps</a>}
           {apple && <a className="button ghost" href={apple} target="_blank" rel="noreferrer">Apple Maps</a>}
           {investment?.url && (
@@ -356,6 +371,16 @@ export function DetailPage() {
       )}
 
       <Surroundings l={l} />
+
+      <section className="card stack-s">
+        <h2>Koszty i kredyt</h2>
+        <CostCalculator listing={l} prefs={prefs} />
+      </section>
+
+      <section className="card stack-s">
+        <h2>Checklista oglądania</h2>
+        <ViewingChecklist listing={l} />
+      </section>
 
       {history.length > 1 && (
         <section className="card">
