@@ -19,6 +19,8 @@ from .db import Store, now
 log = logging.getLogger(__name__)
 
 BUCKET = "calendar"
+# Bump to replace the feed's secret file name (e.g. after it appeared in a public log).
+TOKEN_VERSION = 2
 DEFAULT_DURATION = timedelta(hours=1)
 KIND_EMOJI = {
     "open_day": "🏠 Dzień otwarty",
@@ -147,9 +149,12 @@ def publish(store: Store) -> str | None:
     base = httpx.URL(base).copy_with(path="/", query=None, fragment=None)
     base_url = str(base).rstrip("/")
     token = store.get_setting("calendar_token")
-    if not token:
-        token = secrets.token_urlsafe(24)
+    stale_token = None
+    if not token or store.get_setting("calendar_token_version") != TOKEN_VERSION:
+        # New token (first publish, or the previous one was exposed): old link stops working.
+        stale_token, token = token, secrets.token_urlsafe(24)
         store.set_setting("calendar_token", token)
+        store.set_setting("calendar_token_version", TOKEN_VERSION)
     evs, viewings = store.calendar_entries(now() - timedelta(days=30))
     body = build_ics(evs, viewings)
     with httpx.Client(timeout=30, headers=_headers(key)) as client:
@@ -165,6 +170,8 @@ def publish(store: Store) -> str | None:
                 "Cache-Control": "max-age=300",
             },
         )
+        if resp.status_code < 300 and stale_token:
+            client.delete(f"{base_url}/storage/v1/object/{BUCKET}/{stale_token}.ics")
     if resp.status_code >= 300:
         log.error("Calendar upload failed: HTTP %s %s", resp.status_code, resp.text[:200])
         return None

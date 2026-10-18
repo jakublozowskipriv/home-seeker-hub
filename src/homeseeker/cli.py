@@ -198,6 +198,9 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    # httpx logs every request URL at INFO; URLs can carry secrets (the calendar's file
+    # name) and CI logs of this repository are public.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(prog="homeseeker")
     sub = parser.add_subparsers(dest="command", required=True)
 
