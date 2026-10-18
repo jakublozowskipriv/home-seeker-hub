@@ -1,0 +1,22 @@
+name: Telegram test
+
+# Sends a test message; finds and saves your chat id (send /start to the bot first).
+on:
+  workflow_dispatch:
+
+jobs:
+  telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e .
+      - run: homeseeker telegram-test
