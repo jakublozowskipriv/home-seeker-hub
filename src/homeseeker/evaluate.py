@@ -113,21 +113,21 @@ def evaluate(listing: Listing, prefs: Preferences) -> Evaluation:
         rejections.append(f"lokalizacja: {name}")
 
     commute: dict[str, float] = {}
-    if listing.has_coords:
+    if listing.has_coords and not listing.coords_approximate:
         for dest in prefs.destinations:
             commute[dest.name] = geo.estimate_commute_minutes(
                 listing.lat, listing.lon, dest.lat, dest.lon
             )
         limit = prefs.commute.max_minutes
         too_far = [n for n, m in commute.items() if m > limit * COMMUTE_TOLERANCE]
-        if too_far and listing.coords_approximate:
-            warnings.append("przybliżona lokalizacja, możliwy długi dojazd")
-        elif too_far:
+        if too_far:
             rejections.append("za daleko: " + ", ".join(too_far))
         elif any(m > limit for m in commute.values()):
             warnings.append("dojazd na granicy limitu")
     elif category is None:
         missing.append("lokalizacja")
+    elif listing.coords_approximate:
+        warnings.append("przybliżona lokalizacja")
 
     score = _score(listing, prefs, category, commute)
 

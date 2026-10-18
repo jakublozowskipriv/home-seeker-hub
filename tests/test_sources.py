@@ -29,8 +29,10 @@ OTODOM_ITEM = {
     "areaInSquareMeters": 45.5,
     "roomsNumber": "TWO",
     "floorNumber": "FOURTH",
-    "dateCreatedFirst": "2026-10-10T10:00:00Z",
-    "openDays": "",
+    "createdAtFirst": "2026-10-10T10:00:00+00:00",
+    "tags": [{"value": "BALCONY", "weight": 35}, {"value": "LIFT", "weight": 10}],
+    "rentPrice": {"value": 650, "currency": "PLN"},
+    "openDays": None,
 }
 
 OTODOM_AD = {
@@ -38,6 +40,17 @@ OTODOM_AD = {
     "title": "Nowoczesne 2 pokoje z balkonem",
     "market": "SECONDARY",
     "description": "<p>Mieszkanie w bloku z 2019 r.</p><p>Ogrzewanie miejskie.</p>",
+    "attributes": {
+        "build_year": "2019",
+        "building_floors_num": "5",
+        "building_ownership": "full_ownership",
+        "extras_types": ["balcony", "lift", "basement"],
+        "floor_no": "floor_4",
+        "heating": "urban",
+        "m": "45.5",
+        "market": "secondary",
+        "rooms_num": "2",
+    },
     "target": {
         "Area": "45.5",
         "Build_year": "2019",
@@ -52,6 +65,7 @@ OTODOM_AD = {
     },
     "location": {
         "coordinates": {"latitude": 52.4095, "longitude": 16.9105},
+        "mapDetails": {"radius": 500, "zoom": 13},
         "address": {"city": {"name": "Poznań"}, "district": {"name": "Jeżyce"}},
     },
     "images": [{"thumbnail": "t", "medium": "m", "large": "https://img/large.jpg"}],
@@ -66,6 +80,9 @@ def test_otodom_search_item():
     assert listing.district == "Jeżyce"
     assert "Kościelna" in listing.location_text
     assert listing.images == ["https://img/l.jpg"]
+    assert listing.has_balcony is True and listing.has_elevator is True
+    assert listing.published_at.year == 2026
+    assert listing.raw["rent"] == 650
     assert otodom.parse_search_item({**OTODOM_ITEM, "estate": "INVESTMENT"}) is None
 
 
@@ -79,12 +96,43 @@ def test_otodom_details():
     assert listing.heating == Heating.DISTRICT
     assert listing.ownership == Ownership.FULL
     assert (listing.lat, listing.lon) == (52.4095, 16.9105)
+    assert listing.coords_approximate is False  # 500 m circle is precise enough
     assert listing.images == ["https://img/large.jpg"]
+    assert listing.raw["attributes"]["heating"] == "urban"
+
+
+def test_otodom_details_attributes_only_and_primary_completion():
+    ad = {
+        **OTODOM_AD,
+        "target": {},
+        "market": "PRIMARY",
+        "attributes": {
+            **OTODOM_AD["attributes"],
+            "market": "primary",
+            "free_from": "2027-09-30",
+            "heating": "gas",
+        },
+        "location": {
+            "coordinates": {"latitude": 52.4, "longitude": 16.9},
+            "mapDetails": {"radius": 5000},
+        },
+    }
+    listing = otodom.apply_details(otodom.parse_search_item(OTODOM_ITEM), ad)
+    assert listing.market == Market.PRIMARY
+    assert listing.completion_date.isoformat() == "2027-09-30"
+    assert listing.heating == Heating.GAS
+    assert listing.coords_approximate is True
+    assert listing.floor == 4 and listing.build_year == 2019
 
 
 def test_otodom_extras_without_balcony_means_no_balcony():
-    ad = {**OTODOM_AD, "target": {**OTODOM_AD["target"], "Extras_types": ["lift"]}}
-    listing = otodom.apply_details(otodom.parse_search_item(OTODOM_ITEM), ad)
+    ad = {
+        **OTODOM_AD,
+        "attributes": {**OTODOM_AD["attributes"], "extras_types": ["lift"]},
+        "target": {**OTODOM_AD["target"], "Extras_types": ["lift"]},
+    }
+    item = {**OTODOM_ITEM, "tags": []}
+    listing = otodom.apply_details(otodom.parse_search_item(item), ad)
     assert listing.has_balcony is False
 
 

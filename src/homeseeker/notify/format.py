@@ -66,7 +66,7 @@ def listing_html(listing, ev: Evaluation, prefix: str = "🏠 Nowa oferta") -> s
     if place:
         lines.append(f"📍 {escape(place)}")
     if ev.commute:
-        approx = " (szacunek)" if not listing.coords_approximate else " (przybl. lokalizacja)"
+        approx = " (szacunek)"
         lines.append(
             "🚋 " + " · ".join(f"~{m:.0f} min {escape(n)}" for n, m in ev.commute.items()) + approx
         )

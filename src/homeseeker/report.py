@@ -51,6 +51,7 @@ def build_report(store: Store, stats: RunStats, top: int = 15) -> str:
     lines.append(f"| Status | {dict(stats.statuses)} |")
     lines.append(f"| Werdykty | {dict(stats.verdicts)} |")
     lines.append(f"| Powody odrzucenia | {dict(stats.rejections.most_common())} |")
+    lines.append(f"| Odrzucone lokalizacje | {dict(stats.rejected_locations.most_common())} |")
     lines.append(f"| Brakujące dane | {dict(stats.missing.most_common())} |")
     lines.append(
         f"| Szczegóły: pobrane / błędy / odłożone | {stats.details_fetched} / "

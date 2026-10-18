@@ -96,3 +96,32 @@ def test_stale_listings_deactivated(store, prefs, good_listing):
         conn.execute(update(listings).values(last_seen_at=now() - timedelta(days=3)))
     stats = run(store, [FakeSource([])], prefs, None)
     assert stats.deactivated == 1
+
+
+def test_bootstrap_waits_for_deferred_details(store, prefs, good_listing):
+    class SlowSource(FakeSource):
+        complete_search_results = False
+
+        def fetch_details(self, listing):
+            return listing
+
+    second = copy.deepcopy(good_listing)
+    second.source_id, second.area = "2", 41.0
+    tg = FakeTelegram()
+    for item in (good_listing, second):
+        item.details_fetched = False
+    stats = run(store, [SlowSource([good_listing, second])], prefs, tg, max_details=1)
+    assert stats.details_deferred == 1
+    assert tg.messages == []  # still indexing
+
+    stats = run(store, [SlowSource([good_listing, second])], prefs, tg, max_details=5)
+    assert stats.details_deferred == 0
+    assert len(tg.messages) == 1 and "działa" in tg.messages[0][1]
+
+
+def test_probe_key_tree_redacts_personal_data():
+    from homeseeker.cli import _key_tree
+
+    lines = _key_tree({"owner": {"name": "Jan", "phone": "+48123"}, "price": 1})
+    assert "owner = <redacted>" in lines
+    assert not any("Jan" in line or "+48" in line for line in lines)

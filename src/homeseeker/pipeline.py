@@ -30,6 +30,7 @@ class RunStats:
     statuses: Counter = field(default_factory=Counter)  # new / price_changed / updated / unchanged
     verdicts: Counter = field(default_factory=Counter)
     rejections: Counter = field(default_factory=Counter)
+    rejected_locations: Counter = field(default_factory=Counter)
     missing: Counter = field(default_factory=Counter)
     details_fetched: int = 0
     details_failed: int = 0
@@ -133,6 +134,8 @@ def process_source(
         stats.verdicts[ev.verdict.value] += 1
         for r in ev.rejections:
             stats.rejections[_reason_key(r)] += 1
+            if r.startswith("lokalizacja: "):
+                stats.rejected_locations[r.removeprefix("lokalizacja: ")] += 1
         for m in ev.missing:
             stats.missing[m] += 1
 
@@ -183,6 +186,10 @@ def send_notifications(
         return
 
     try:
+        if bootstrap and (stats.details_deferred or stats.incomplete_sources):
+            # Initial indexing still in progress: collect silently, digest comes at the end.
+            log.info("Bootstrap in progress (%s detail pages deferred)", stats.details_deferred)
+            return
         if bootstrap:
             lines = [
                 f"👋 <b>Home Seeker Hub działa!</b> Znalazłem {len(chosen)} pasujących "
@@ -233,7 +240,7 @@ def run(
     sources: list[Source],
     prefs: Preferences,
     telegram: Telegram | None,
-    max_pages: int = 30,
+    max_pages: int = 50,
     max_details: int = 60,
 ) -> RunStats:
     stats = RunStats()

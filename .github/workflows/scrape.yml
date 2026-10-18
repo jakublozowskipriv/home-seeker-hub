@@ -5,6 +5,10 @@ on:
     # Co 3 godziny, ok. 7:17-22:17 czasu polskiego (cron jest w UTC).
     - cron: "17 5-20/3 * * *"
   workflow_dispatch:
+    inputs:
+      max_details:
+        description: "Max detail pages per source (first indexing: e.g. 2000)"
+        default: "150"
 
 concurrency:
   group: scrape
@@ -17,12 +21,13 @@ permissions:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       HOMESEEKER_PREFERENCES: ${{ secrets.HOMESEEKER_PREFERENCES }}
+      MAX_DETAILS: ${{ inputs.max_details || '150' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,9 +39,9 @@ jobs:
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::warning::DATABASE_URL is not set - running in dry-run mode (no storage, no notifications)."
-            homeseeker run --dry-run
+            homeseeker run --dry-run --max-details 30
           else
-            homeseeker run
+            homeseeker run --max-details "$MAX_DETAILS"
           fi
       - name: Keep the schedule alive
         # GitHub disables scheduled workflows after 60 days without repository activity.

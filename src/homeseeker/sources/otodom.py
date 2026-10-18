@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from datetime import date
 from urllib.parse import urlencode
 
 from .. import textparse
@@ -20,6 +21,30 @@ SEARCH_PATH = "/pl/wyniki/sprzedaz/mieszkanie/wielkopolskie/poznan/poznan/poznan
 ROOM_ENUMS = ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX"]
 BALCONY_TOKENS = {"balcony", "terrace", "loggia", "balkon", "taras"}
 ELEVATOR_TOKENS = {"lift", "winda", "elevator"}
+# Otodom gives exact coordinates or a circle (radius in metres) around the address.
+APPROX_RADIUS_M = 1000
+# Structured attributes kept in `raw` (the rest is tracking noise).
+KEEP_ATTRIBUTES = {
+    "build_year",
+    "building_floors_num",
+    "building_material",
+    "building_ownership",
+    "building_type",
+    "construction_status",
+    "energy_certificate",
+    "equipment_types",
+    "extras_types",
+    "floor_no",
+    "free_from",
+    "heating",
+    "m",
+    "market",
+    "media_types",
+    "rooms_num",
+    "security_types",
+    "windows_type",
+    "rent",
+}
 
 
 def search_url(prefs: Preferences, page: int) -> str:
@@ -80,6 +105,7 @@ def parse_search_item(item: dict) -> Listing | None:
     if not slug or not item.get("id"):
         return None
     district, loc_text = _location_text(item.get("location"))
+    tags = {str(t.get("value", "")).lower() for t in item.get("tags") or [] if isinstance(t, dict)}
     listing = Listing(
         source="otodom",
         source_id=str(item["id"]),
@@ -89,16 +115,23 @@ def parse_search_item(item: dict) -> Listing | None:
         area=to_float(item.get("areaInSquareMeters")),
         rooms=parse_rooms(item.get("roomsNumber")),
         floor=parse_floor(item.get("floorNumber")),
+        has_balcony=True if tags & BALCONY_TOKENS else None,
+        has_elevator=True if tags & ELEVATOR_TOKENS else None,
         district=district,
         location_text=loc_text,
         images=_images(item.get("images"))[:5],
         is_private_owner=item.get("isPrivateOwner"),
         agency=dig(item, "agency", "name"),
-        published_at=parse_datetime(item.get("dateCreatedFirst") or item.get("dateCreated")),
+        published_at=parse_datetime(
+            item.get("createdAtFirst") or item.get("dateCreatedFirst") or item.get("dateCreated")
+        ),
         description=item.get("shortDescription"),
     )
-    if item.get("openDays"):
-        listing.raw["open_days"] = item["openDays"]
+    if rent := to_float(dig(item, "rentPrice", "value")):
+        listing.raw["rent"] = rent
+    for key in ("openDays", "unifiedOpenDays"):
+        if item.get(key):
+            listing.raw["open_days"] = item[key]
     return listing
 
 
@@ -112,6 +145,8 @@ def _tokens(ad: dict) -> tuple[set[str], dict[str, list[str]]]:
         vals = val if isinstance(val, list) else [val]
         values.setdefault(key.lower(), []).extend(str(v) for v in vals if v not in (None, ""))
 
+    for key, val in (ad.get("attributes") or {}).items():
+        add(key, val)
     for key, val in (ad.get("target") or {}).items():
         add(key, val)
     for ch in ad.get("characteristics") or []:
@@ -174,20 +209,29 @@ def apply_details(listing: Listing, ad: dict) -> Listing:
         listing.ownership = textparse.detect_ownership(description)
 
     if listing.market == Market.PRIMARY:
-        listing.completion_date = textparse.detect_completion(description)
+        free_from = _first(values, "free_from")
+        try:
+            listing.completion_date = date.fromisoformat(free_from[:10]) if free_from else None
+        except ValueError:
+            listing.completion_date = None
+        listing.completion_date = listing.completion_date or textparse.detect_completion(
+            description
+        )
 
     location = ad.get("location") or {}
     lat = to_float(dig(location, "coordinates", "latitude"))
     lon = to_float(dig(location, "coordinates", "longitude"))
     if lat and lon:
         listing.lat, listing.lon = lat, lon
-        listing.coords_approximate = bool(dig(location, "mapDetails", "radius", default=0))
+        radius = to_float(dig(location, "mapDetails", "radius")) or 0
+        listing.coords_approximate = radius > APPROX_RADIUS_M
     district, loc_text = _location_text(location)
     listing.district = district or listing.district
     listing.location_text = loc_text or listing.location_text
     listing.images = _images(ad.get("images"))[:10] or listing.images
-    listing.agency = dig(ad, "agency", "name") or dig(ad, "owner", "name") or listing.agency
-    listing.raw = {**listing.raw, "structured": {k: v[:5] for k, v in values.items()}}
+    listing.agency = dig(ad, "agency", "name") or listing.agency
+    attributes = {k: v for k, v in (ad.get("attributes") or {}).items() if k in KEEP_ATTRIBUTES}
+    listing.raw = {**listing.raw, "attributes": attributes}
     listing.details_fetched = True
 
     # Fill gaps from the description.

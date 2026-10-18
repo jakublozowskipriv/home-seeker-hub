@@ -74,12 +74,30 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if any(stats.seen.values()) else 1  # nothing found at all = something is broken
 
 
+# Personal data of advertisers must never end up in (public) CI logs.
+REDACTED_KEYS = {
+    "owner",
+    "contactdetails",
+    "advertowner",
+    "user",
+    "contact",
+    "phones",
+    "phone",
+    "seller_id",
+    "title_base64",
+    "agency",
+}
+
+
 def _key_tree(data, prefix: str = "", depth: int = 0, max_depth: int = 4) -> list[str]:
     """Compact listing of JSON key paths with sample values - for adapting parsers."""
     out: list[str] = []
     if isinstance(data, dict):
         for k, v in data.items():
             path = f"{prefix}.{k}" if prefix else str(k)
+            if str(k).lower() in REDACTED_KEYS:
+                out.append(f"{path} = <redacted>")
+                continue
             if isinstance(v, dict | list) and depth < max_depth:
                 out += _key_tree(v, path, depth + 1, max_depth)
             else:
@@ -168,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         help="in-memory database, no notifications - just print a report",
     )
     p.add_argument("--sources", help=f"comma separated, default all: {','.join(ALL_SOURCES)}")
-    p.add_argument("--max-pages", type=int, default=30)
+    p.add_argument("--max-pages", type=int, default=50)
     p.add_argument("--max-details", type=int, default=60, help="detail pages per source")
     p.add_argument("--delay", type=float, default=1.5, help="seconds between requests")
     p.add_argument("--report", help="write the markdown report to this file")
