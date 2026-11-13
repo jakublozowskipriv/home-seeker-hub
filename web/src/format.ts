@@ -167,6 +167,7 @@ export function groupDuplicates(listings: Listing[]): Grouped[] {
 export type SortKey = "score" | "price" | "newest" | "price_m2";
 export type VerdictFilter = "match" | "review" | "negotiable" | "all";
 export type MarketFilter = "all" | "secondary" | "primary";
+export type ReactionFilter = "any" | "liked" | "liked_by_me" | "disliked" | "none";
 
 export interface Filters {
   verdict: VerdictFilter;
@@ -175,21 +176,37 @@ export interface Filters {
   query: string;
   onlyNew: boolean;
   market: MarketFilter;
+  reaction: ReactionFilter;
 }
 
 export const DEFAULT_FILTERS: Filters = {
   verdict: "match", status: "any", sort: "score", query: "", onlyNew: false, market: "all",
+  reaction: "any",
 };
 
 export function isNew(l: Listing, lastVisit: string | null): boolean {
   return lastVisit != null && l.first_seen_at > lastVisit;
 }
 
+/** Does a (grouped) listing pass the reaction filter? Reactions on any portal's copy count. */
+function matchesReaction(g: Grouped, f: ReactionFilter, reactions: Reaction[], me: string | null) {
+  if (f === "any") return true;
+  const ids = new Set([g.listing.id, ...g.duplicates.map((d) => d.id)]);
+  const mine = reactions.filter((r) => ids.has(r.listing_id));
+  if (f === "liked") return mine.some((r) => r.reaction === "up");
+  if (f === "liked_by_me") return mine.some((r) => r.reaction === "up" && r.email === me);
+  if (f === "disliked") return mine.some((r) => r.reaction === "down");
+  return mine.length === 0;
+}
+
 export function applyFilters(
   items: Grouped[], f: Filters, statuses: Map<string, ListingStatus>, lastVisit: string | null,
+  reactions: Reaction[] = [], me: string | null = null,
 ): Grouped[] {
   const q = f.query.trim().toLowerCase();
-  const out = items.filter(({ listing: l }) => {
+  const out = items.filter((g) => {
+    const l = g.listing;
+    if (!matchesReaction(g, f.reaction, reactions, me)) return false;
     if (f.verdict !== "all" && l.verdict !== f.verdict) return false;
     const status = statuses.get(l.id)?.status;
     if (f.status === "none" && status) return false;
