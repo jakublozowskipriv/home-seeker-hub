@@ -362,11 +362,19 @@ def area() -> None:
 
 
 PORTALS = {
-    "morizon": "https://www.morizon.pl/mieszkania/poznan/",
-    "gratka": "https://gratka.pl/nieruchomosci/mieszkania/poznan/sprzedaz",
-    "domiporta": "https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan",
+    "morizon": ("https://www.morizon.pl/mieszkania/poznan/", r"/oferta/sprzedaz-mieszkanie"),
+    "domiporta": (
+        "https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan",
+        r"domiporta\.pl/nieruchomosci/",
+    ),
 }
 _PHONE_RE = re.compile(r"\+?\d[\d \-]{7,}\d")
+INTERESTING = re.compile(
+    r"price|area|room|floor|build|year|balcon|balkon|terrace|lift|elevat|heat|ogrzew|lat|lon|"
+    r"coordinat|location|address|street|district|market|rynek|description|creat|date|photo|"
+    r"image|title|ownership|rent|czynsz|equipment|feature|extras|investment|developer",
+    re.I,
+)
 
 
 def _scrub(text: str) -> str:
@@ -374,70 +382,97 @@ def _scrub(text: str) -> str:
     return _PHONE_RE.sub("<num>", text)
 
 
-def _page_structure(html: str, base: str) -> list[str]:
-    """Embedded data blocks, JSON-LD types and listing-like links of one page."""
-    import json
-    from urllib.parse import urljoin
+def unflatten_devalue(payload: list):
+    """Decode a Nuxt 3 payload (devalue): values reference other array slots by index."""
+    cache: dict[int, object] = {}
+    wrappers = {"ShallowReactive", "Reactive", "Ref", "ShallowRef", "EmptyRef", "Date"}
 
+    def hydrate(index):
+        if not isinstance(index, int) or index < 0:
+            return None
+        if index in cache:
+            return cache[index]
+        value = payload[index]
+        if isinstance(value, list):
+            if value and isinstance(value[0], str) and value[0] in wrappers:
+                out = value[1] if value[0] == "Date" else hydrate(value[1])
+            else:
+                out = []
+                cache[index] = out
+                out.extend(hydrate(j) for j in value)
+                return out
+        elif isinstance(value, dict):
+            out = {}
+            cache[index] = out
+            for k, v in value.items():
+                out[k] = hydrate(v)
+            return out
+        else:
+            out = value
+        cache[index] = out
+        return out
+
+    return hydrate(0)
+
+
+def _interesting_tree(data, prefix: str, limit: int = 140) -> list[str]:
     from .cli import _key_tree
 
-    out = []
-    scripts = re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S | re.I)
-    big = sorted(scripts, key=lambda s: -len(s[1]))[:6]
-    out.append(f"scripts: {len(scripts)}; largest:")
-    for attrs, body in big:
-        head = _scrub(re.sub(r"\s+", " ", body[:160]))
-        out.append(f"  [{len(body)}] {attrs.strip()[:80]} | {head}")
-    for attrs, body in scripts:
+    lines = _key_tree(data, prefix, max_depth=9)
+    keep = [ln for ln in lines if INTERESTING.search(ln.split(" = ")[0].rsplit(".", 1)[-1])]
+    return [_scrub(ln) for ln in keep[:limit]]
+
+
+def _page_report(html: str, link_re: str) -> tuple[list[str], list[str]]:
+    import json
+
+    out, links = [], []
+    for attrs, body in re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S | re.I):
         if "ld+json" in attrs:
             try:
                 data = json.loads(body)
             except ValueError:
                 continue
-            items = data if isinstance(data, list) else [data]
-            for item in items[:3]:
-                if isinstance(item, dict):
-                    out.append(f"  ld+json @type={item.get('@type')} keys={list(item)[:15]}")
-    for name in sorted(set(re.findall(r"window\.(__[A-Z_]+__|[A-Za-z_]+State)\s*=", html))):
-        out.append(f"  window.{name} = …")
-    for attrs, body in big[:2]:
-        text = body.strip()
-        if text.startswith("{") or "application/json" in attrs:
+            out.append("-- ld+json")
+            out += _interesting_tree(data, "ld", 60)
+            links += re.findall(r'"(https?://[^"]+)"', body)
+        if "__NUXT_DATA__" in attrs:
             try:
-                data = json.loads(text)
-            except ValueError:
+                data = unflatten_devalue(json.loads(body))
+            except (ValueError, RecursionError) as e:
+                out.append(f"-- nuxt decode error {e}")
                 continue
-            out += ["  " + _scrub(line) for line in _key_tree(data, "json", max_depth=5)[:80]]
-    links = re.findall(r'href="([^"#]+)"', html)
-    listing = [
-        u for u in links if re.search(r"/oferta|/ogloszenie|/mieszkanie/\w|/nieruchomosci/.+\d", u)
-    ]
-    uniq = list(dict.fromkeys(urljoin(base, u) for u in listing))
-    out.append(f"listing-like links: {len(uniq)}; sample:")
-    out += [f"  {u}" for u in uniq[:8]]
-    return out
+            out.append("-- nuxt data")
+            out += _interesting_tree(data, "nuxt")
+    links += re.findall(r'href="([^"#]+)"', html)
+    links = [u for u in dict.fromkeys(links) if re.search(link_re, u)]
+    out.append(f"-- listing links: {len(links)}")
+    out += [f"  {u}" for u in links[:5]]
+    return out, links
 
 
 def portals() -> None:
-    """How do Morizon, Gratka and Domiporta carry their listings (search + one detail)?"""
+    """How do Morizon (= Gratka) and Domiporta carry their listings: search + one detail."""
+    import sys
+
     from .http import Http
 
+    sys.setrecursionlimit(10000)
     http = Http(delay=1.5)
     try:
-        for name, url in PORTALS.items():
+        for name, (url, link_re) in PORTALS.items():
             print(f"===== {name}: {url}")
             try:
-                html = http.get(url).text
+                lines, links = _page_report(http.get(url).text, link_re)
             except Exception as e:  # diagnostic
                 print("  ERROR", e)
                 continue
-            lines = _page_structure(html, url)
             print("\n".join(lines))
-            links = [ln.strip() for ln in lines if ln.startswith("  http")]
             if links:
-                print(f"----- {name} detail: {links[0]}")
+                detail = links[0] if links[0].startswith("http") else url + links[0]
+                print(f"----- {name} detail: {detail}")
                 try:
-                    print("\n".join(_page_structure(http.get(links[0]).text, links[0])))
+                    print("\n".join(_page_report(http.get(detail).text, link_re)[0]))
                 except Exception as e:  # diagnostic
                     print("  ERROR", e)
     finally:
