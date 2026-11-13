@@ -46,6 +46,7 @@ POLICIES: list[tuple[str, str, str, str | None, str | None]] = [
     ("runs", "members read", "select", MEMBER, None),
     ("settings", "members read preferences", "select", f"{MEMBER} and key = 'preferences'", None),
     ("settings", "owner reads calendar link", "select", f"{OWNER} and key = 'calendar_url'", None),
+    ("settings", "members read reach map", "select", f"{MEMBER} and key = 'reach_map'", None),
     ("settings", "owner adds preferences", "insert", None, f"{OWNER} and key = 'preferences'"),
     (
         "settings",

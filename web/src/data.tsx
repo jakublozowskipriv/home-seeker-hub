@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "./api";
-import type { Listing, ListingStatus, Me, Member, Reaction } from "./api/types";
+import type { Listing, ListingStatus, Me, Member, PricePoint, Reaction } from "./api/types";
 import { districtMedians, groupDuplicates, type Grouped } from "./format";
 
 interface Data {
@@ -10,6 +10,8 @@ interface Data {
   listings: Listing[];
   grouped: Grouped[];
   byId: Map<string, Listing>;
+  /** Price history by listing id: days on the market and price drops. */
+  history: Map<string, PricePoint[]>;
   /** Median price per m² by district (lower-case), for "suspiciously cheap" flags. */
   medians: Map<string, number>;
   statuses: Map<string, ListingStatus>;
@@ -29,6 +31,7 @@ const DataContext = createContext<Data | null>(null);
 
 export function DataProvider({ me, children }: { me: Me; children: ReactNode }) {
   const [listings, setListings] = useState<Listing[]>([]);
+  const [history, setHistory] = useState<Record<string, PricePoint[]>>({});
   const [statusRows, setStatusRows] = useState<ListingStatus[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
@@ -54,6 +57,8 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
     try {
       const [l, run] = await Promise.all([api.listings(true), api.lastRunAt(), refreshShared()]);
       setListings(l);
+      // Extra, not essential: the list works without it.
+      api.priceChanges().then(setHistory).catch(() => setHistory({}));
       setLastRunAt(run);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -76,6 +81,7 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
       grouped: groupDuplicates(active),
       byId: new Map(listings.map((l) => [l.id, l])),
       medians: districtMedians(listings),
+      history: new Map(Object.entries(history)),
       statuses: new Map(statusRows.map((s) => [s.listing_id, s])),
       reactions,
       commentCounts,
@@ -87,7 +93,7 @@ export function DataProvider({ me, children }: { me: Me; children: ReactNode }) 
       refresh,
       refreshShared,
     };
-  }, [me, listings, statusRows, reactions, commentCounts, members, lastVisit, lastRunAt, loading,
+  }, [me, listings, history, statusRows, reactions, commentCounts, members, lastVisit, lastRunAt, loading,
       error, refresh, refreshShared]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

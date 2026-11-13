@@ -30,6 +30,12 @@ class FakeTelegram:
         self.messages.append(("listing", html))
 
 
+@pytest.fixture(autouse=True)
+def instant_notifications(prefs):
+    """Most tests check per-listing messages; the daily digest has its own test."""
+    prefs.notifications.mode = "instant"
+
+
 @pytest.fixture
 def store():
     engine = make_engine("sqlite://")
@@ -237,3 +243,39 @@ def test_backup_round_trip(store, prefs, good_listing, tmp_path):
     assert copy_.price == good_listing.price and copy_.first_seen_at is not None
     with pytest.raises(ValueError, match="not empty"):
         restore(fresh, path)
+
+
+def test_daily_digest_once_a_day_with_new_listings_and_drops(
+    store, prefs, good_listing, monkeypatch
+):
+    from datetime import datetime
+
+    from homeseeker import pipeline
+    from homeseeker.events import WARSAW
+
+    prefs.notifications.mode = "daily"
+    clock = {"t": datetime(2026, 11, 14, 9, 0, tzinfo=WARSAW)}
+    monkeypatch.setattr(pipeline, "now", lambda: clock["t"])
+    tg = FakeTelegram()
+    run(store, [FakeSource([good_listing])], prefs, tg)  # first run: welcome digest
+    assert len(tg.messages) == 1
+    tg.messages.clear()
+
+    second = copy.deepcopy(good_listing)
+    second.source_id, second.lat = "2", 52.4000
+    cheaper = copy.deepcopy(good_listing)
+    cheaper.price = 650_000
+    run(store, [FakeSource([cheaper, second])], prefs, tg)
+    assert tg.messages == []  # 9:00 – before the digest hour
+
+    clock["t"] = datetime(2026, 11, 14, 18, 17, tzinfo=WARSAW)
+    run(store, [FakeSource([cheaper, second])], prefs, tg)
+    assert len(tg.messages) == 1
+    text = tg.messages[0][1]
+    assert "Podsumowanie dnia" in text and "1 nowych ofert, 1 obniżek" in text
+    assert "699 000 zł → 650 000 zł (−7%)" in text
+
+    tg.messages.clear()
+    clock["t"] = datetime(2026, 11, 14, 21, 17, tzinfo=WARSAW)
+    run(store, [FakeSource([cheaper, second])], prefs, tg)
+    assert tg.messages == []  # already sent today

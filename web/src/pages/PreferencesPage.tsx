@@ -164,7 +164,16 @@ export function PreferencesPage() {
         {section("Powiadomienia (Telegram)", <>
           {check(["notifications", "notify_review"], "Oferty z brakującymi danymi")}
           {check(["notifications", "notify_negotiable"], "Oferty „do negocjacji”")}
-          {num(["notifications", "max_per_run"], "Więcej naraz → jedno podsumowanie")}
+          <label className="field">Kiedy wysyłać
+            <select value={p.notifications?.mode ?? "daily"}
+                    onChange={(e) => set(["notifications", "mode"], e.target.value)}>
+              <option value="daily">Jedno podsumowanie dziennie</option>
+              <option value="instant">Od razu, każda oferta osobno</option>
+            </select>
+          </label>
+          {(p.notifications?.mode ?? "daily") === "daily"
+            ? num(["notifications", "digest_hour"], "Podsumowanie od godziny", 1, "(czas polski)")
+            : num(["notifications", "max_per_run"], "Więcej naraz → jedno podsumowanie")}
         </>)}
       </fieldset>
       {isOwner && (

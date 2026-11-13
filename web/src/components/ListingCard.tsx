@@ -2,8 +2,8 @@ import { Link } from "react-router-dom";
 import type { Listing, ListingStatus, Member, Reaction } from "../api/types";
 import { useData } from "../data";
 import {
-  commuteEntries, headline, initials, isEstimate, money, personName, reactionSummary, redFlags,
-  scoreClass, shortDestination, sourceName, STATUS_LABELS,
+  commuteEntries, headline, initials, isEstimate, isSunny, money, personName, priceStats,
+  reactionSummary, redFlags, scoreClass, shortDestination, sourceName, STATUS_LABELS,
 } from "../format";
 
 export function Photo({ listing, className = "" }: { listing: Listing; className?: string }) {
@@ -44,7 +44,8 @@ interface Props {
 export function ListingCard({ listing: l, duplicates, status, reactions, comments, members,
                               isNew }: Props) {
   const { up, down } = reactionSummary(l.id, reactions);
-  const { medians } = useData();
+  const { medians, history } = useData();
+  const stats = priceStats(l, history.get(l.id));
   const flags = redFlags(l, medians).filter((f) => f.level === "high");
   return (
     <Link to={`/oferta/${encodeURIComponent(l.id)}`} className="listing-card">
@@ -62,6 +63,13 @@ export function ListingCard({ listing: l, duplicates, status, reactions, comment
           {l.verdict === "negotiable" && <span className="chip warn">do negocjacji</span>}
           {l.market === "primary" && <span className="chip">pierwotny</span>}
           {l.market === "secondary" && <span className="chip">wtórny</span>}
+          {stats.dropPct != null && stats.dropPct >= 1 && (
+            <span className="chip drop" title={`z ${money(stats.fromPrice)}`}>
+              📉 −{stats.dropPct.toLocaleString("pl-PL")}%
+            </span>
+          )}
+          {stats.days >= 60 && <span className="chip">🕒 {stats.days} dni</span>}
+          {isSunny(l) && <span className="chip">☀️</span>}
           {flags.length > 0 && (
             <span className="chip flag" title={flags.map((f) => f.text).join("\n")}>
               🚩 {flags.length}

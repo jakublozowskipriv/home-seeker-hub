@@ -72,4 +72,6 @@ weights:                     # suma nie musi wynosić 100 - wynik jest normalizo
 notifications:
   notify_review: true        # oferty z brakującymi danymi (np. nie wiadomo czy jest balkon)
   notify_negotiable: false
-  max_per_run: 15            # więcej nowych ofert naraz -> jedno podsumowanie z top 10
+  max_per_run: 15            # tryb instant: więcej nowych ofert naraz -> jedno podsumowanie
+  mode: daily                # daily: jedno podsumowanie dziennie; instant: wiadomość od razu
+  digest_hour: 18            # od której godziny wysłać podsumowanie dnia (czas polski)

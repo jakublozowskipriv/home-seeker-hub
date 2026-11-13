@@ -22,6 +22,8 @@ export interface Evaluation {
   red_flags?: RedFlag[];
   /** Mortgage instalment with the preferred assumptions (Preferencje → kredyt). */
   monthly_payment?: number | null;
+  /** Which way the windows face, from the description: N, E, S, W. */
+  exposure?: string[];
 }
 
 export interface RedFlag {
@@ -56,6 +58,18 @@ export interface Nearby {
   bus_stop?: Place;
   supermarket?: Place;
   shops_500m?: number;
+  park?: Place;
+  pharmacy?: Place;
+  kindergarten?: Place;
+  parcel_locker?: Place;
+}
+
+/** Door-to-door minutes from a grid over Poznań (scraper's `reach_map` setting). */
+export interface ReachMap {
+  cell: [number, number]; // degrees of latitude, longitude
+  limit: number;
+  destinations: string[];
+  points: number[][]; // [lat, lon, minutes to each destination…]
 }
 
 /** Cadastral parcel at the listing's point (listing.raw.parcel). */
@@ -174,6 +188,10 @@ export interface Api {
   listings(includeRejected: boolean): Promise<Listing[]>;
   listing(id: string): Promise<Listing | null>;
   priceHistory(id: string): Promise<PricePoint[]>;
+  /** Price history of all listings, by listing id (for days on market and price drops). */
+  priceChanges(): Promise<Record<string, PricePoint[]>>;
+  /** Commute reach grid for the map (null until the scraper computed it). */
+  reachMap(): Promise<ReachMap | null>;
   lastRunAt(): Promise<string | null>;
   // shared state
   statuses(): Promise<ListingStatus[]>;

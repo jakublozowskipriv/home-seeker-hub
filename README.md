@@ -27,15 +27,23 @@ GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
   gdy jest szybsza o więcej niż 5 minut, a w ocenie liczy się jak o 5 minut dłuższa (limit
   dojazdu sprawdzany jest według prawdziwego czasu). Gdy rozkład jest niedostępny, dojazd
   jest szacowany z odległości (oznaczony „~”).
-* **Okolica**: najbliższy przystanek tramwajowy i autobusowy, najbliższy supermarket i liczba
-  sklepów spożywczych do 500 m (z OpenStreetMap, odświeżane co tydzień).
+* **Okolica**: najbliższy przystanek tramwajowy i autobusowy, najbliższy supermarket, liczba
+  sklepów spożywczych do 500 m, najbliższy park, apteka, przedszkole i paczkomat
+  (z OpenStreetMap, odświeżane co tydzień).
+* **Mapa zasięgu**: na mapie warstwa „Zasięg dojazdu” – obszar, z którego dojedziesz do
+  obu miejsc w limicie (zielony) albo do 25% dłużej (pomarańczowy), wg rozkładu ZTM.
+* **Czas na rynku i obniżki**: ile dni oferta jest w ogłoszeniach i o ile spadła cena
+  (📉 na liście, sortowanie „Największa obniżka”).
+* **Strony świata** z opisu („okna na południe”, „balkon od zachodu”): ☀️ na liście
+  i filtr „Okna na płd./zach.”.
 * **Działka i księga wieczysta**: dla ofert w grze aplikacja ustala działkę (usługa ULDK
   GUGiK) i daje link do Geoportalu (granice działki, plan miejscowy); numer księgi
   wieczystej, jeśli jest w opisie, pokazuje przy linku do przeglądarki EKW.
-* Pierwsze uruchomienie wysyła jedno podsumowanie z 10 najlepszymi ofertami; potem tylko
-  nowości i obniżki. Gdy naraz pojawi się więcej niż 15 nowych ofert, przychodzi jedno
-  podsumowanie zamiast lawiny wiadomości. Powiadomienia dotyczą tylko ofert z ceną
-  i sprawdzonymi szczegółami.
+* Pierwsze uruchomienie wysyła jedno podsumowanie z 10 najlepszymi ofertami. Potem
+  domyślnie raz dziennie (od 18:00) przychodzi **podsumowanie dnia**: nowe pasujące
+  oferty i obniżki cen. W Preferencjach można przełączyć na tryb „od razu” (wiadomość
+  o każdej ofercie; przy ponad 15 naraz – jedno podsumowanie). Powiadomienia dotyczą
+  tylko ofert z ceną i sprawdzonymi szczegółami.
 * Inwestycje deweloperskie na Otodom (jeden kafelek = wiele mieszkań) są rozbijane na
   pojedyncze mieszkania, z terminem oddania z inwestycji.
 

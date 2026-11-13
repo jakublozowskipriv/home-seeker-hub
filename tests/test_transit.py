@@ -201,3 +201,21 @@ def test_failed_shop_refresh_is_not_retried_every_run(monkeypatch):
         shops, _version = area_mod.load_shops(store, http=object())
         assert shops == [[52.4, 16.9, "bakery", ""]]  # the old list stays in use
     assert len(calls) == 1
+
+
+def test_reach_map_covers_cells_near_the_line(router, prefs, monkeypatch):
+    from homeseeker import reach
+    from homeseeker.db import Store, init_db, make_engine
+
+    # a small box around the synthetic tram line, one destination
+    monkeypatch.setattr(reach, "BBOX", (52.386, 16.930, 52.410, 16.938))
+    prefs.destinations = prefs.destinations[1:]  # Stary Rynek only
+    engine = make_engine("sqlite://")
+    init_db(engine)
+    store = Store(engine)
+    area = Area(router)
+    assert reach.update_reach_map(store, area, prefs) is True
+    data = store.get_setting("reach_map")
+    assert data["destinations"] == ["Stary Rynek"] and data["points"]
+    assert all(p[2] <= prefs.commute.max_minutes * reach.KEEP_FACTOR for p in data["points"])
+    assert reach.update_reach_map(store, area, prefs) is False  # unchanged: not recomputed

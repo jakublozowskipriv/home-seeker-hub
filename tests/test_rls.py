@@ -181,6 +181,18 @@ def test_calendar_link_visible_to_owner_only(engine):
     assert as_user(engine, MEMBER, "select key from settings where key = 'calendar_url'") == []
 
 
+def test_reach_map_readable_by_members(engine):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into settings (key, value, updated_at) "
+                "values ('reach_map', '{\"points\": []}', now())"
+            )
+        )
+    assert len(as_user(engine, MEMBER, "select key from settings where key = 'reach_map'")) == 1
+    assert as_user(engine, STRANGER, "select key from settings where key = 'reach_map'") == []
+
+
 def test_checklist_shared_by_members(engine):
     add = (
         "insert into viewing_checklists (listing_id, items, updated_by, updated_at) "

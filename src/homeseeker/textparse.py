@@ -189,3 +189,25 @@ _LAND_REGISTER_RE = re.compile(r"\b([A-Z]{2}\d[A-Z])\s*/\s*(\d{8})\s*/\s*(\d)\b"
 def find_land_register(text: str | None) -> str | None:
     m = _LAND_REGISTER_RE.search(text or "")
     return f"{m.group(1).upper()}/{m.group(2)}/{m.group(3)}" if m else None
+
+
+# Which way the windows / balcony face: "okna na południe", "balkon od zachodu",
+# "ekspozycja południowo-zachodnia". A direction counts only next to such a word, so
+# "Dworzec Zachodni" or "wschodnia część miasta" do not.
+_DIRECTIONS = {"poludni": "S", "polnoc": "N", "wschod": "E", "zachod": "W"}
+_DIR = r"(poludni|polnoc|wschod|zachod)\w*"
+_EXPOSURE_RE = re.compile(
+    r"\b(okn\w*|balkon\w*|loggi\w*|lodzi\w*|taras\w*|ekspozycj\w*|wystaw\w*|nasloneczni\w*|"
+    r"salon\w*|pokoj\w*|sypialni\w*)\b[^.;!?]{0,40}?\b"
+    rf"(?:na |od |w strone |strone |z )?{_DIR}(?:(?:\s*-\s*|\s+i\s+|\s*/\s*|\s*,\s*)\b{_DIR})?"
+)
+
+
+def detect_exposure(text: str | None) -> list[str]:
+    """Compass directions the flat faces, e.g. ["S", "W"] (sorted N, E, S, W)."""
+    found: set[str] = set()
+    for m in _EXPOSURE_RE.finditer(fold(text)):
+        for word in (m.group(2), m.group(3)):
+            if word:
+                found.add(_DIRECTIONS[word])
+    return [d for d in "NESW" if d in found]

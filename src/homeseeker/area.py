@@ -25,7 +25,23 @@ OVERPASS_URLS = [
 OVERPASS_AGENT = "home-seeker-hub/1.0 (+https://github.com/jakublozowskipriv/home-seeker-hub)"
 POZNAN_BBOX = (52.29, 16.73, 52.52, 17.08)  # south, west, north, east
 GROCERY = "supermarket|convenience|greengrocer|bakery|butcher"
-SHOPS_QUERY = '[out:json][timeout:90];nwr["shop"~"^({kinds})$"]({s},{w},{n},{e});out center tags;'
+GROCERY_KINDS = set(GROCERY.split("|"))
+AMENITIES = "kindergarten|pharmacy|parcel_locker"
+# Grocery shops, parks and everyday amenities; one query, cached for a week.
+SHOPS_QUERY = (
+    "[out:json][timeout:120];("
+    'nwr["shop"~"^({kinds})$"]({s},{w},{n},{e});'
+    'nwr["leisure"="park"]({s},{w},{n},{e});'
+    'nwr["amenity"~"^({amenities})$"]({s},{w},{n},{e});'
+    ");out center tags;"
+)
+PLACES_FORMAT = 2  # bump when the query changes: the cached list is fetched again
+NEARBY_PLACES = {  # kind -> key in Evaluation.nearby (nearest within 1.5 km)
+    "park": "park",
+    "pharmacy": "pharmacy",
+    "kindergarten": "kindergarten",
+    "parcel_locker": "parcel_locker",
+}
 SHOPS_REFRESH = timedelta(days=7)
 SHOPS_RETRY = timedelta(hours=12)  # after a failed refresh (Overpass can hang for minutes)
 SHOPS_RADIUS_M = 500
@@ -42,13 +58,14 @@ def parse_shops(data: dict) -> list[list]:
         if lat is None or lon is None:
             continue
         name = tags.get("brand") or tags.get("name") or ""
-        out.append([round(lat, 6), round(lon, 6), tags.get("shop", ""), name])
+        kind = tags.get("shop") or tags.get("leisure") or tags.get("amenity") or ""
+        out.append([round(lat, 6), round(lon, 6), kind, name])
     return out
 
 
 def fetch_shops() -> list[list]:
     s, w, n, e = POZNAN_BBOX
-    query = SHOPS_QUERY.format(kinds=GROCERY, s=s, w=w, n=n, e=e)
+    query = SHOPS_QUERY.format(kinds=GROCERY, amenities=AMENITIES, s=s, w=w, n=n, e=e)
     errors = []
     with httpx.Client(timeout=75, headers={"User-Agent": OVERPASS_AGENT}) as client:
         for url in OVERPASS_URLS:
@@ -66,7 +83,11 @@ def load_shops(store: Store, http: Http | None) -> tuple[list[list], str | None]
     cached = store.get_setting("shops") or {}
     fetched = cached.get("fetched_at")
     attempted = store.get_setting("shops_attempt_at")
-    due = not fetched or now() - datetime.fromisoformat(fetched) > SHOPS_REFRESH
+    due = (
+        not fetched
+        or now() - datetime.fromisoformat(fetched) > SHOPS_REFRESH
+        or cached.get("format") != PLACES_FORMAT
+    )
     backing_off = attempted and now() - datetime.fromisoformat(attempted) < SHOPS_RETRY
     if http is not None and due and not (backing_off and cached):
         try:
@@ -76,7 +97,7 @@ def load_shops(store: Store, http: Http | None) -> tuple[list[list], str | None]
             log.warning("Shops (OpenStreetMap) not refreshed: %s", err)
         else:
             if items:
-                cached = {"fetched_at": now().isoformat(), "items": items}
+                cached = {"fetched_at": now().isoformat(), "items": items, "format": PLACES_FORMAT}
                 store.set_setting("shops", cached)
                 log.info("Shops: %s from OpenStreetMap", len(items))
     return cached.get("items") or [], cached.get("fetched_at", "")[:10] or None
@@ -135,11 +156,17 @@ class Area:
         if self.shops:
             close = self.shop_index.near(lat, lon, 1500)
             supermarkets = [(i, m) for i, m in close if self.shops[i][2] == "supermarket"]
-            supermarket = supermarkets[0] if supermarkets else None
-            if supermarket:
-                i, metres = supermarket
+            if supermarkets:
+                i, metres = supermarkets[0]
                 out["supermarket"] = {"name": self.shops[i][3] or "supermarket", "m": round(metres)}
-            out["shops_500m"] = sum(1 for _, m in close if m <= SHOPS_RADIUS_M)
+            out["shops_500m"] = sum(
+                1 for i, m in close if m <= SHOPS_RADIUS_M and self.shops[i][2] in GROCERY_KINDS
+            )
+            for kind, key in NEARBY_PLACES.items():
+                nearest = next(((i, m) for i, m in close if self.shops[i][2] == kind), None)
+                if nearest:
+                    i, metres = nearest
+                    out[key] = {"name": self.shops[i][3], "m": round(metres)}
         return out
 
     def parcel(self, lat: float, lon: float) -> dict | None:

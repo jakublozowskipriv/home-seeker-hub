@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from . import dedup
 from .db import Store, now, row_to_listing
 from .evaluate import Evaluation, Verdict, evaluate
-from .events import event_message, fetch_fairs, open_day_event
+from .events import WARSAW, event_message, fetch_fairs, open_day_event
 from .http import FetchError, Http
 from .models import Listing
 from .notify.format import listing_html, money
@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(days=2)
 FAIRS_CHECK_EVERY = timedelta(hours=20)
 # Bump when evaluation rules change, so stored listings get re-evaluated.
-EVALUATION_VERSION = 3
+EVALUATION_VERSION = 4
 DIGEST_SIZE = 10
 PARCELS_PER_RUN = 80
 
@@ -341,6 +341,58 @@ def send_event_notifications(store: Store, telegram: Telegram, stats: RunStats) 
         log.error("Telegram error: %s", e)
 
 
+def _one_per_group(rows: list[Any]) -> list[Any]:
+    out, groups = [], set()
+    for row in rows:
+        group = row.group_id or row.id
+        if group not in groups:
+            groups.add(group)
+            out.append(row)
+    return out
+
+
+def daily_digest_text(chosen: list[Any], drops: list[Any]) -> str:
+    lines = [f"🗓 <b>Podsumowanie dnia</b>: {len(chosen)} nowych ofert, {len(drops)} obniżek"]
+    if chosen:
+        lines.append("")
+        lines.append(f"🆕 <b>Nowe</b> (najlepsze {min(len(chosen), DIGEST_SIZE)}):")
+        lines += _digest(chosen, "").split("\n")[1:]
+    if drops:
+        lines.append("")
+        lines.append("📉 <b>Obniżki cen</b>:")
+        for row in drops[:DIGEST_SIZE]:
+            listing = row_to_listing(row)
+            pct = round(100 * (row.notified_price - row.price) / row.notified_price)
+            lines.append(
+                f'• <a href="{listing.url}">{money(row.notified_price)} → {money(row.price)} '
+                f"(−{pct}%) · {listing.location_text or listing.district or ''}</a>"
+            )
+    return "\n".join(lines)
+
+
+def send_daily_digest(
+    store: Store,
+    prefs: Preferences,
+    telegram: Telegram,
+    pending: list[Any],
+    chosen: list[Any],
+    stats: RunStats,
+) -> None:
+    """One message a day, at the first run from digest_hour (Polish time) on."""
+    local = now().astimezone(WARSAW)
+    today = local.date().isoformat()
+    if local.hour < prefs.notifications.digest_hour or store.get_setting("digest_sent_on") == today:
+        return
+    drops = _one_per_group(store.price_drops(notifiable_verdicts(prefs)))
+    if chosen or drops:
+        telegram.send_text(daily_digest_text(chosen, drops))
+        stats.notified += len(chosen) + len(drops)
+    store.mark_notified_many(pending)
+    for row in drops:
+        store.mark_notified(row.id, row.price)
+    store.set_setting("digest_sent_on", today)
+
+
 def send_notifications(
     store: Store,
     prefs: Preferences,
@@ -369,6 +421,9 @@ def send_notifications(
         if bootstrap and (stats.details_deferred or stats.incomplete_sources):
             # Initial indexing still in progress: collect silently, digest comes at the end.
             log.info("Bootstrap in progress (%s detail pages deferred)", stats.details_deferred)
+            return
+        if not bootstrap and prefs.notifications.mode == "daily":
+            send_daily_digest(store, prefs, telegram, pending, chosen, stats)
             return
         if bootstrap or len(chosen) > prefs.notifications.max_per_run:
             # First run, or a big batch at once (e.g. a newly covered group of listings):
@@ -459,6 +514,12 @@ def run(
 
     if area is not None and area.http is not None:
         stats.parcels_found = enrich_parcels(store, area)
+    try:
+        from .reach import update_reach_map
+
+        update_reach_map(store, area, prefs)
+    except Exception:  # a map layer must never break the run
+        log.exception("Reach map failed")
 
     send_notifications(store, prefs, telegram, drops, stats)
     if telegram is not None:

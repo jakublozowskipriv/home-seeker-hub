@@ -41,6 +41,7 @@ class Evaluation:
     land_register: str | None = None  # księga wieczysta number found in the description
     red_flags: list[dict] = field(default_factory=list)  # {"level": high|info, "text"}
     monthly_payment: float | None = None  # mortgage instalment with the preferred assumptions
+    exposure: list[str] = field(default_factory=list)  # window directions: N, E, S, W
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -203,6 +204,7 @@ def evaluate(listing: Listing, prefs: Preferences, area: Area | None = None) -> 
         land_register=textparse.find_land_register(listing.description),
         red_flags=redflags.find_red_flags(listing.title, listing.description),
         monthly_payment=payment,
+        exposure=textparse.detect_exposure(listing.description),
     )
 
 
