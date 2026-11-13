@@ -61,6 +61,7 @@ export function ListingCard({ listing: l, duplicates, status, reactions, comment
           {l.verdict === "review" && <span className="chip warn">do sprawdzenia</span>}
           {l.verdict === "negotiable" && <span className="chip warn">do negocjacji</span>}
           {l.market === "primary" && <span className="chip">pierwotny</span>}
+          {l.market === "secondary" && <span className="chip">wtórny</span>}
           {flags.length > 0 && (
             <span className="chip flag" title={flags.map((f) => f.text).join("\n")}>
               🚩 {flags.length}
