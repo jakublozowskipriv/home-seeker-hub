@@ -206,3 +206,16 @@ def test_parcels_looked_up_once_and_timetable_change_reevaluates(store, prefs, g
     stats_before = store.get_setting("evaluation_fingerprint")
     run(store, [FakeSource([good_listing])], prefs, None, area=area)
     assert store.get_setting("evaluation_fingerprint") != stats_before
+
+
+def test_explain_lists_verdicts_and_reasons(store, prefs, good_listing):
+    from homeseeker.explain import explain
+
+    low = copy.deepcopy(good_listing)
+    low.source_id, low.floor, low.location_text = "2", 1, "Poznań, Rataje, ul. Polanka"
+    good_listing.location_text = "Poznań, Rataje, ul. Polanka 5"
+    run(store, [FakeSource([good_listing, low])], prefs, None)
+    text = explain(store, "polanka")
+    assert "2 ofert w bazie" in text
+    assert "'match': 1" in text and "'rejected': 1" in text
+    assert "za nisko (1. p.)" in text

@@ -9,6 +9,9 @@ on:
       max_details:
         description: "Max detail pages per source (first indexing: e.g. 2000)"
         default: "150"
+      explain:
+        description: "Instead of scraping: explain verdicts of listings matching this phrase"
+        default: ""
 
 concurrency:
   group: scrape
@@ -32,6 +35,7 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       MAX_DETAILS: ${{ inputs.max_details || '150' }}
+      EXPLAIN: ${{ inputs.explain || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,7 +45,9 @@ jobs:
       - run: pip install -e .
       - name: Run
         run: |
-          if [ -z "$DATABASE_URL" ]; then
+          if [ -n "$EXPLAIN" ]; then
+            homeseeker explain "$EXPLAIN"
+          elif [ -z "$DATABASE_URL" ]; then
             echo "::warning::DATABASE_URL is not set - running in dry-run mode (no storage, no notifications)."
             homeseeker run --dry-run --max-details 30
           else
