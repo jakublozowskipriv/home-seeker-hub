@@ -382,37 +382,7 @@ def _scrub(text: str) -> str:
     return _PHONE_RE.sub("<num>", text)
 
 
-def unflatten_devalue(payload: list):
-    """Decode a Nuxt 3 payload (devalue): values reference other array slots by index."""
-    cache: dict[int, object] = {}
-    wrappers = {"ShallowReactive", "Reactive", "Ref", "ShallowRef", "EmptyRef", "Date"}
-
-    def hydrate(index):
-        if not isinstance(index, int) or index < 0:
-            return None
-        if index in cache:
-            return cache[index]
-        value = payload[index]
-        if isinstance(value, list):
-            if value and isinstance(value[0], str) and value[0] in wrappers:
-                out = value[1] if value[0] == "Date" else hydrate(value[1])
-            else:
-                out = []
-                cache[index] = out
-                out.extend(hydrate(j) for j in value)
-                return out
-        elif isinstance(value, dict):
-            out = {}
-            cache[index] = out
-            for k, v in value.items():
-                out[k] = hydrate(v)
-            return out
-        else:
-            out = value
-        cache[index] = out
-        return out
-
-    return hydrate(0)
+from .sources.common import unflatten_devalue  # noqa: E402
 
 
 def _interesting_tree(data, prefix: str, limit: int = 140) -> list[str]:

@@ -8,7 +8,7 @@ from .. import geo
 from ..evaluate import Evaluation, Verdict
 from ..models import Heating, Market
 
-SOURCE_NAMES = {"otodom": "Otodom", "olx": "OLX"}
+SOURCE_NAMES = {"otodom": "Otodom", "olx": "OLX", "morizon": "Morizon", "domiporta": "Domiporta"}
 HEATING_NAMES = {
     Heating.DISTRICT: "miejskie",
     Heating.GAS: "gazowe",

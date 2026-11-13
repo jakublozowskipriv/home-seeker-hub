@@ -24,9 +24,6 @@ jobs:
       - name: Timetable, shops and parcels
         continue-on-error: true
         run: homeseeker diagnose area
-      - name: Other portals (structure)
-        continue-on-error: true
-        run: homeseeker diagnose portals-details
       - name: Probe Otodom structure
         continue-on-error: true
         run: homeseeker probe otodom
