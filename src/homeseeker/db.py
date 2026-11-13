@@ -411,6 +411,21 @@ class Store:
                 .order_by(listings.c.score.desc())
             ).fetchall()
 
+    def price_drops(self, verdicts: list[str]) -> list[Any]:
+        """Notified listings whose price fell below the price last reported, biggest first."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                select(listings).where(
+                    listings.c.active.is_(True),
+                    listings.c.verdict.in_(verdicts),
+                    listings.c.notified_at.is_not(None),
+                    listings.c.notified_price.is_not(None),
+                    listings.c.price.is_not(None),
+                    listings.c.price < listings.c.notified_price,
+                )
+            ).fetchall()
+        return sorted(rows, key=lambda r: r.price / r.notified_price)
+
     def same_point(self, listing: Listing, tolerance: float = 1e-5) -> list[Any]:
         """Other listings placed at exactly the same coordinates."""
         if not listing.has_coords:

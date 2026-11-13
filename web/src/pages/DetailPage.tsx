@@ -13,8 +13,9 @@ import { MapView } from "../components/MapView";
 import { ViewingChecklist } from "../components/ViewingChecklist";
 import { useData } from "../data";
 import {
-  appleMapsUrl, commuteEntries, distance, EKW_URL, floorText, geoportalUrl, googleMapsUrl,
-  HEATING_LABELS, isEstimate, legText, money, personName, reactionSummary, redFlags,
+  appleMapsUrl, commuteEntries, distance, EKW_URL, exposureText, floorText, geoportalUrl,
+  googleMapsUrl, HEATING_LABELS, isEstimate, legText, money, personName, priceStats,
+  reactionSummary, redFlags,
   relativeTime, routeLines, shortDestination, sourceName, STATUS_LABELS, VERDICT_LABELS,
 } from "../format";
 import { destinations, loadPrefs, type Prefs } from "../preferences";
@@ -23,7 +24,9 @@ function yesNo(value: boolean | null): string {
   return value == null ? "?" : value ? "tak" : "nie";
 }
 
-function Facts({ l }: { l: Listing }) {
+function Facts({ l, history }: { l: Listing; history: PricePoint[] }) {
+  const stats = priceStats(l, history);
+  const exposure = exposureText(l.evaluation?.exposure);
   const rows: [string, string][] = [
     ["Cena", money(l.price)],
     ["Cena za m²", l.price_per_m2 ? money(l.price_per_m2) : "?"],
@@ -39,6 +42,11 @@ function Facts({ l }: { l: Listing }) {
     ["Własność", l.ownership === "full" ? "pełna" : l.ownership === "cooperative"
       ? "spółdzielcze" : "?"],
     ["Ogłoszenie", l.is_private_owner ? "prywatne" : l.agency ?? "biuro / deweloper"],
+    ["Na rynku", `${stats.days} dni (od ${new Date(stats.since).toLocaleDateString("pl-PL")})`],
+    ...(stats.dropPct != null ? [["Obniżka",
+      `−${stats.dropPct.toLocaleString("pl-PL")}% (z ${money(stats.fromPrice)})`] as
+      [string, string]] : []),
+    ...(exposure ? [["Okna / balkon", exposure] as [string, string]] : []),
   ];
   return (
     <dl className="facts">
@@ -61,6 +69,12 @@ function Surroundings({ l }: { l: Listing }) {
       `${near.supermarket.name}, ${distance(near.supermarket.m)}`] as [string, string]] : []),
     ...(near.shops_500m != null ? [["🥖 Sklepy spożywcze do 500 m",
       String(near.shops_500m)] as [string, string]] : []),
+    ...([["🌳 Park", near.park], ["💊 Apteka", near.pharmacy],
+         ["🧸 Przedszkole", near.kindergarten], ["📦 Paczkomat", near.parcel_locker]] as
+        [string, { name: string; m: number } | undefined][])
+      .filter(([, place]) => place)
+      .map(([label, place]) => [label,
+        `${place!.name ? `${place!.name}, ` : ""}${distance(place!.m)}`] as [string, string]),
   ];
   if (!commute.length && !places.length && !parcel && !ev?.land_register) return null;
   return (
@@ -358,7 +372,7 @@ export function DetailPage() {
 
       <section className="card">
         <h2>Szczegóły</h2>
-        <Facts l={l} />
+        <Facts l={l} history={history} />
       </section>
 
       {l.lat != null && l.lon != null && prefs && (

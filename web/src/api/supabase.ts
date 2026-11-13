@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
   Api, CalendarEvent, Checklist, ChecklistItem, Comment, Listing, ListingStatus, Me, Member,
-  NewEvent, PricePoint, Reaction, ReactionKey, StatusKey,
+  NewEvent, PricePoint, ReachMap, Reaction, ReactionKey, StatusKey,
 } from "./types";
 
 /** Columns for the list view: everything except the heavy description / raw data. */
@@ -91,6 +91,22 @@ export class SupabaseApi implements Api {
       out.push(...rows);
       if (rows.length < PAGE) return out;
     }
+  }
+
+  async priceChanges(): Promise<Record<string, PricePoint[]>> {
+    const out: Record<string, PricePoint[]> = {};
+    for (let from = 0; ; from += PAGE) {
+      const rows = check(await this.db.from("price_history").select("listing_id,price,seen_at")
+        .order("id").range(from, from + PAGE - 1)) as
+        { listing_id: string; price: number; seen_at: string }[];
+      for (const r of rows) (out[r.listing_id] ??= []).push({ price: r.price, seen_at: r.seen_at });
+      if (rows.length < PAGE) return out;
+    }
+  }
+
+  async reachMap(): Promise<ReachMap | null> {
+    const rows = check(await this.db.from("settings").select("value").eq("key", "reach_map"));
+    return ((rows?.[0] as { value: ReachMap } | undefined)?.value) ?? null;
   }
 
   async listing(id: string): Promise<Listing | null> {

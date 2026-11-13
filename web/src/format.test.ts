@@ -4,7 +4,8 @@ import { errorMessage } from "./api/supabase";
 import type { Listing, ListingStatus } from "./api/types";
 import {
   applyFilters, DEFAULT_FILTERS, distance, floorText, geoportalUrl, groupDuplicates, legText,
-  money, relativeTime, routeLines, shortDestination, type Filters,
+  money, relativeTime, routeLines, shortDestination, type Filters, priceStats, exposureText,
+  isSunny,
 } from "./format";
 
 function listing(id: string, over: Partial<Listing> = {}): Listing {
@@ -60,7 +61,8 @@ describe("format", () => {
         updated_by: null, updated_at: "" }],
     ]);
     const ids = (f = DEFAULT_FILTERS) =>
-      applyFilters(items, f, statuses, "2026-10-18T12:00:00Z").map((g) => g.listing.id);
+      applyFilters(items, f, { statuses, lastVisit: "2026-10-18T12:00:00Z" })
+        .map((g) => g.listing.id);
     expect(ids()).toEqual(["b", "e", "a"]); // rejected by me is hidden, review filtered out
     expect(ids({ ...DEFAULT_FILTERS, market: "secondary" })).toEqual(["b", "a"]);
     expect(ids({ ...DEFAULT_FILTERS, market: "primary" })).toEqual(["e"]);
@@ -76,8 +78,9 @@ describe("format", () => {
       { listing_id: "c", email: "ja@x.pl", reaction: "up" as const },
     ];
     const byReaction = (reaction: Filters["reaction"], verdict: Filters["verdict"] = "match") =>
-      applyFilters(items, { ...DEFAULT_FILTERS, reaction, verdict }, statuses,
-                   "2026-10-18T12:00:00Z", reactions, "ja@x.pl").map((g) => g.listing.id);
+      applyFilters(items, { ...DEFAULT_FILTERS, reaction, verdict },
+                   { statuses, lastVisit: "2026-10-18T12:00:00Z", reactions, me: "ja@x.pl" })
+        .map((g) => g.listing.id);
     expect(byReaction("liked")).toEqual(["e", "a"]);
     expect(byReaction("liked_by_me")).toEqual(["a"]);
     expect(byReaction("liked_by_me", "all")).toEqual(["c", "a"]); // c is "do sprawdzenia"
@@ -116,5 +119,29 @@ describe("commute and surroundings", () => {
     expect(distance(1260)).toBe("1,3 km");
     expect(geoportalUrl({ id: "306401_1.0021.AR_12.45/3", region: "Jeżyce", number: "45/3" }))
       .toBe("https://mapy.geoportal.gov.pl/imapnext/imap/?identifyParcel=306401_1.0021.AR_12.45%2F3");
+  });
+});
+
+describe("market history and exposure", () => {
+  const base = {
+    id: "x", price: 680_000, published_at: "2026-08-01T00:00:00Z",
+    first_seen_at: "2026-10-01T00:00:00Z", evaluation: null,
+  } as unknown as Listing;
+  const now = new Date("2026-11-14T00:00:00Z").getTime();
+
+  it("counts days on the market and the drop from the highest price", () => {
+    const s = priceStats(base, [{ price: 700_000, seen_at: "" }, { price: 680_000, seen_at: "" }], now);
+    expect(s.days).toBe(105);
+    expect(s.dropPct).toBe(2.9);
+    expect(s.fromPrice).toBe(700_000);
+    expect(priceStats(base, undefined, now).dropPct).toBeNull();
+  });
+
+  it("names the window directions and spots the sunny side", () => {
+    expect(exposureText(["S", "W"])).toBe("południe, zachód");
+    const sunny = { ...base, evaluation: { exposure: ["S"] } } as unknown as Listing;
+    expect(isSunny(sunny)).toBe(true);
+    expect(isSunny({ ...base, evaluation: { exposure: ["N", "E"] } } as unknown as Listing))
+      .toBe(false);
   });
 });

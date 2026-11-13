@@ -82,6 +82,10 @@ class Notifications(BaseModel):
     notify_review: bool = True
     notify_negotiable: bool = False
     max_per_run: int = 15  # above this, one digest message instead of single messages
+    # daily: one summary a day (new listings and price drops) from digest_hour on;
+    # instant: a message per listing at every run
+    mode: Literal["daily", "instant"] = "daily"
+    digest_hour: int = Field(18, ge=0, le=23)  # Polish time
 
 
 class Preferences(BaseModel):

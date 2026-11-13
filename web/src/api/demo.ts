@@ -1,6 +1,6 @@
 import type {
   Api, CalendarEvent, Checklist, ChecklistItem, Comment, Listing, ListingStatus, Me, Member,
-  NewEvent, PricePoint, Reaction, ReactionKey, StatusKey,
+  NewEvent, PricePoint, ReachMap, Reaction, ReactionKey, StatusKey,
 } from "./types";
 
 /**
@@ -45,7 +45,7 @@ function fake(
     images: [],
     is_private_owner: n % 5 === 0,
     agency: null,
-    published_at: day,
+    published_at: n % 4 === 0 ? new Date(Date.now() - 95 * 86400_000).toISOString() : day,
     verdict,
     score: rest.score ?? 90 - n * 3,
     evaluation: {
@@ -68,8 +68,12 @@ function fake(
         tram_stop: { name: "Przystanek demo", m: 150 + n * 40 },
         supermarket: { name: n % 2 ? "Biedronka" : "Lidl", m: 120 + n * 60 },
         shops_500m: 9 - (n % 7),
+        park: { name: "Park demo", m: 250 + n * 30 },
+        pharmacy: { name: "Apteka demo", m: 180 + n * 20 },
+        parcel_locker: { name: "InPost", m: 90 + n * 10 },
       },
       land_register: n === 1 ? "PO1P/00000000/0" : null,
+      exposure: n % 3 === 0 ? ["S", "W"] : n % 3 === 1 ? ["E"] : [],
       red_flags: n === 4 ? [{ level: "high", text: "sprzedaż z lokatorem / najemcą" }] : [],
       monthly_payment: Math.round(((price * 0.8) * 0.065 / 12) / (1 - (1 + 0.065 / 12) ** -360)),
     },
@@ -164,6 +168,26 @@ export class DemoApi implements Api {
       { price: l.price + 25_000, seen_at: new Date(Date.now() - 20 * 86400_000).toISOString() },
       { price: l.price, seen_at: new Date(Date.now() - 3 * 86400_000).toISOString() },
     ];
+  }
+  async priceChanges(): Promise<Record<string, PricePoint[]>> {
+    const out: Record<string, PricePoint[]> = {};
+    for (const l of LISTINGS) {
+      if (l.price && Number(l.id.split(":")[1]) % 2 === 1) out[l.id] = await this.priceHistory(l.id);
+    }
+    return out;
+  }
+  async reachMap(): Promise<ReachMap | null> {
+    // Made up: minutes grow with distance from the centre.
+    const points: number[][] = [];
+    for (let lat = 52.36; lat <= 52.45; lat += 0.0027) {
+      for (let lon = 16.85; lon <= 17.0; lon += 0.0044) {
+        const work = 4 + Math.hypot((lat - 52.399) * 111, (lon - 16.9205) * 68) * 3.2;
+        const centre = 4 + Math.hypot((lat - 52.4085) * 111, (lon - 16.9342) * 68) * 3.2;
+        if (Math.max(work, centre) <= 30) points.push([lat, lon, Math.round(work), Math.round(centre)]);
+      }
+    }
+    return { cell: [0.0027, 0.0044], limit: 20, destinations: ["Praca (Nowy Rynek D)", "Stary Rynek"],
+             points };
   }
   async lastRunAt(): Promise<string | null> {
     return new Date(Date.now() - 40 * 60_000).toISOString();

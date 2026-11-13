@@ -1,6 +1,8 @@
-import { Circle, CircleMarker, MapContainer, Popup, TileLayer, Tooltip } from "react-leaflet";
+import {
+  Circle, CircleMarker, MapContainer, Popup, Rectangle, TileLayer, Tooltip,
+} from "react-leaflet";
 import type { ReactNode } from "react";
-import type { Listing } from "../api/types";
+import type { Listing, ReachMap } from "../api/types";
 
 export interface Destination {
   name: string;
@@ -14,6 +16,13 @@ export function scoreColor(score: number): string {
   return score >= 75 ? "#1f8a5b" : score >= 55 ? "#d08a1e" : "#b04a3a";
 }
 
+/** Colour of a reach cell by its slowest destination; null = not drawn. */
+export function reachColor(minutes: number, limit: number): string | null {
+  if (minutes <= limit) return "#1f8a5b";
+  if (minutes <= limit * 1.25) return "#d08a1e";
+  return null;
+}
+
 interface Props {
   listings: Listing[];
   destinations: Destination[];
@@ -21,17 +30,31 @@ interface Props {
   zoom?: number;
   className?: string;
   popup?: (l: Listing) => ReactNode;
+  /** Commute reach layer: cells within the limit (green) or slightly over (amber). */
+  reach?: ReachMap | null;
 }
 
 /** OpenStreetMap with listings as coloured dots (no marker images needed). */
 export function MapView({ listings, destinations, center = POZNAN, zoom = 12, className = "",
-                          popup }: Props) {
+                          popup, reach }: Props) {
   return (
-    <MapContainer center={center} zoom={zoom} className={`map ${className}`} scrollWheelZoom>
+    <MapContainer center={center} zoom={zoom} className={`map ${className}`} scrollWheelZoom
+                  preferCanvas>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {reach?.points.map(([lat, lon, ...minutes]) => {
+        const color = reachColor(Math.max(...minutes), reach.limit);
+        if (!color) return null;
+        const [dlat, dlon] = reach.cell;
+        return (
+          <Rectangle key={`${lat},${lon}`}
+                     bounds={[[lat - dlat / 2, lon - dlon / 2], [lat + dlat / 2, lon + dlon / 2]]}
+                     pathOptions={{ stroke: false, fillColor: color, fillOpacity: 0.22 }}
+                     interactive={false} />
+        );
+      })}
       {destinations.map((d) => (
         <CircleMarker key={d.name} center={[d.lat, d.lon]} radius={9}
                       pathOptions={{ color: "#2b4c9a", fillColor: "#2b4c9a", fillOpacity: 0.9 }}>

@@ -26,8 +26,8 @@ const VERDICTS: [VerdictFilter, string][] = [
 ];
 
 export function ListPage() {
-  const { grouped, statuses, reactions, commentCounts, members, lastVisit, loading, error, me } =
-    useData();
+  const { grouped, statuses, reactions, commentCounts, members, lastVisit, loading, error, me,
+          history } = useData();
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const compare = useCompare();
 
@@ -37,14 +37,13 @@ export function ListPage() {
     try { localStorage.setItem(FILTER_KEY, JSON.stringify(next)); } catch { /* private mode */ }
   }
 
-  const items = useMemo(
-    () => applyFilters(grouped, filters, statuses, lastVisit, reactions, me.email),
-    [grouped, filters, statuses, lastVisit, reactions, me.email]);
+  const ctx = useMemo(() => ({ statuses, lastVisit, reactions, me: me.email, history }),
+    [statuses, lastVisit, reactions, me.email, history]);
+  const items = useMemo(() => applyFilters(grouped, filters, ctx), [grouped, filters, ctx]);
   // Liked listings can sit in another tab (e.g. "do sprawdzenia"): say how many.
   const elsewhere = useMemo(() => (filters.reaction === "any" || filters.verdict === "all" ? 0
-    : applyFilters(grouped, { ...filters, verdict: "all" }, statuses, lastVisit, reactions,
-                   me.email).length - items.length),
-    [grouped, filters, statuses, lastVisit, reactions, me.email, items.length]);
+    : applyFilters(grouped, { ...filters, verdict: "all" }, ctx).length - items.length),
+    [grouped, filters, ctx, items.length]);
   const newCount = grouped.filter((g) => isNew(g.listing, lastVisit)).length;
 
   return (
@@ -71,6 +70,7 @@ export function ListPage() {
           <option value="newest">Najnowsze</option>
           <option value="price">Najtańsze</option>
           <option value="price_m2">Najniższa cena za m²</option>
+          <option value="drop">Największa obniżka</option>
         </select>
         <select value={filters.market}
                 onChange={(e) => update({ market: e.target.value as MarketFilter })}>
@@ -90,6 +90,11 @@ export function ListPage() {
           <input type="checkbox" checked={filters.onlyNew}
                  onChange={(e) => update({ onlyNew: e.target.checked })} />
           Tylko nowe ({newCount})
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={filters.sunny}
+                 onChange={(e) => update({ sunny: e.target.checked })} />
+          ☀️ Okna na płd./zach.
         </label>
       </div>
       {error && <p className="error">Nie udało się wczytać ofert: {error}</p>}

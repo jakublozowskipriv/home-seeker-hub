@@ -83,3 +83,13 @@ def test_detect_completion():
 def test_strip_html_and_fold():
     assert tp.strip_html("<p>Ładny&nbsp;<b>balkon</b></p>") == "Ładny\xa0 balkon"
     assert tp.fold("Święty ŁAZARZ") == "swiety lazarz"
+
+
+def test_exposure_needs_a_window_or_balcony_nearby():
+    from homeseeker.textparse import detect_exposure
+
+    assert detect_exposure("Okna na południe, balkon od zachodu.") == ["S", "W"]
+    assert detect_exposure("Ekspozycja południowo-zachodnia") == ["S", "W"]
+    assert detect_exposure("Salon z oknami wychodzącymi na wschód i południe") == ["E", "S"]
+    assert detect_exposure("Blisko Dworca Zachodniego, wschodnia część Rataj") == []
+    assert detect_exposure(None) == []

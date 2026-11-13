@@ -1,5 +1,5 @@
 import type {
-  Leg, Listing, ListingStatus, Member, Parcel, Reaction, RedFlag, StatusKey, Verdict,
+  Leg, Listing, ListingStatus, Member, Parcel, PricePoint, Reaction, RedFlag, StatusKey, Verdict,
 } from "./api/types";
 
 export const STATUS_LABELS: Record<StatusKey, string> = {
@@ -164,7 +164,7 @@ export function groupDuplicates(listings: Listing[]): Grouped[] {
   return [...groups.values()];
 }
 
-export type SortKey = "score" | "price" | "newest" | "price_m2";
+export type SortKey = "score" | "price" | "newest" | "price_m2" | "drop";
 export type VerdictFilter = "match" | "review" | "negotiable" | "all";
 export type MarketFilter = "all" | "secondary" | "primary";
 export type ReactionFilter = "any" | "liked" | "liked_by_me" | "disliked" | "none";
@@ -177,12 +177,56 @@ export interface Filters {
   onlyNew: boolean;
   market: MarketFilter;
   reaction: ReactionFilter;
+  sunny: boolean;
 }
 
 export const DEFAULT_FILTERS: Filters = {
   verdict: "match", status: "any", sort: "score", query: "", onlyNew: false, market: "all",
-  reaction: "any",
+  reaction: "any", sunny: false,
 };
+
+/** Days on the market (since the portal's publication date, else since we first saw it)
+ * and the drop from the highest price seen. */
+export interface PriceStats {
+  days: number;
+  since: string;
+  dropPct: number | null;
+  fromPrice: number | null;
+}
+
+export function priceStats(l: Listing, history: PricePoint[] | undefined,
+                           now = Date.now()): PriceStats {
+  const since = l.published_at ?? l.first_seen_at;
+  const days = Math.max(0, Math.floor((now - new Date(since).getTime()) / 86400_000));
+  const top = Math.max(l.price ?? 0, ...(history ?? []).map((p) => p.price));
+  const dropped = l.price != null && top > l.price * 1.005;
+  return {
+    days, since,
+    dropPct: dropped ? Math.round((1 - l.price! / top) * 1000) / 10 : null,
+    fromPrice: dropped ? top : null,
+  };
+}
+
+const COMPASS: Record<string, string> = { N: "północ", E: "wschód", S: "południe", W: "zachód" };
+
+export function exposureText(exposure: string[] | undefined): string | null {
+  return exposure?.length ? exposure.map((d) => COMPASS[d] ?? d).join(", ") : null;
+}
+
+/** Windows to the south or west: the sunny side. */
+export function isSunny(l: Listing): boolean {
+  return (l.evaluation?.exposure ?? []).some((d) => d === "S" || d === "W");
+}
+
+/** What filtering needs besides the listings and the filters. */
+export interface FilterContext {
+  statuses: Map<string, ListingStatus>;
+  lastVisit: string | null;
+  reactions?: Reaction[];
+  me?: string | null;
+  history?: Map<string, PricePoint[]>;
+  now?: number;
+}
 
 export function isNew(l: Listing, lastVisit: string | null): boolean {
   return lastVisit != null && l.first_seen_at > lastVisit;
@@ -199,14 +243,14 @@ function matchesReaction(g: Grouped, f: ReactionFilter, reactions: Reaction[], m
   return mine.length === 0;
 }
 
-export function applyFilters(
-  items: Grouped[], f: Filters, statuses: Map<string, ListingStatus>, lastVisit: string | null,
-  reactions: Reaction[] = [], me: string | null = null,
-): Grouped[] {
+export function applyFilters(items: Grouped[], f: Filters, ctx: FilterContext): Grouped[] {
+  const { statuses, lastVisit, reactions = [], me = null, history = new Map() } = ctx;
   const q = f.query.trim().toLowerCase();
+  const drop = (l: Listing) => priceStats(l, history.get(l.id), ctx.now).dropPct ?? 0;
   const out = items.filter((g) => {
     const l = g.listing;
     if (!matchesReaction(g, f.reaction, reactions, me)) return false;
+    if (f.sunny && !isSunny(l)) return false;
     if (f.verdict !== "all" && l.verdict !== f.verdict) return false;
     const status = statuses.get(l.id)?.status;
     if (f.status === "none" && status) return false;
@@ -224,6 +268,7 @@ export function applyFilters(
     price: (a, b) => (a.price ?? Infinity) - (b.price ?? Infinity),
     price_m2: (a, b) => (a.price_per_m2 ?? Infinity) - (b.price_per_m2 ?? Infinity),
     newest: (a, b) => b.first_seen_at.localeCompare(a.first_seen_at),
+    drop: (a, b) => drop(b) - drop(a) || b.score - a.score,
   };
   return out.sort((a, b) => by[f.sort](a.listing, b.listing));
 }
