@@ -359,3 +359,86 @@ def area() -> None:
         except Exception as e:  # diagnostic
             print(f"ULDK {label} ERROR", e)
     http.close()
+
+
+PORTALS = {
+    "morizon": "https://www.morizon.pl/mieszkania/poznan/",
+    "gratka": "https://gratka.pl/nieruchomosci/mieszkania/poznan/sprzedaz",
+    "domiporta": "https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan",
+}
+_PHONE_RE = re.compile(r"\+?\d[\d \-]{7,}\d")
+
+
+def _scrub(text: str) -> str:
+    """Logs are public: hide anything that looks like a phone number."""
+    return _PHONE_RE.sub("<num>", text)
+
+
+def _page_structure(html: str, base: str) -> list[str]:
+    """Embedded data blocks, JSON-LD types and listing-like links of one page."""
+    import json
+    from urllib.parse import urljoin
+
+    from .cli import _key_tree
+
+    out = []
+    scripts = re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S | re.I)
+    big = sorted(scripts, key=lambda s: -len(s[1]))[:6]
+    out.append(f"scripts: {len(scripts)}; largest:")
+    for attrs, body in big:
+        head = _scrub(re.sub(r"\s+", " ", body[:160]))
+        out.append(f"  [{len(body)}] {attrs.strip()[:80]} | {head}")
+    for attrs, body in scripts:
+        if "ld+json" in attrs:
+            try:
+                data = json.loads(body)
+            except ValueError:
+                continue
+            items = data if isinstance(data, list) else [data]
+            for item in items[:3]:
+                if isinstance(item, dict):
+                    out.append(f"  ld+json @type={item.get('@type')} keys={list(item)[:15]}")
+    for name in sorted(set(re.findall(r"window\.(__[A-Z_]+__|[A-Za-z_]+State)\s*=", html))):
+        out.append(f"  window.{name} = …")
+    for attrs, body in big[:2]:
+        text = body.strip()
+        if text.startswith("{") or "application/json" in attrs:
+            try:
+                data = json.loads(text)
+            except ValueError:
+                continue
+            out += ["  " + _scrub(line) for line in _key_tree(data, "json", max_depth=5)[:80]]
+    links = re.findall(r'href="([^"#]+)"', html)
+    listing = [
+        u for u in links if re.search(r"/oferta|/ogloszenie|/mieszkanie/\w|/nieruchomosci/.+\d", u)
+    ]
+    uniq = list(dict.fromkeys(urljoin(base, u) for u in listing))
+    out.append(f"listing-like links: {len(uniq)}; sample:")
+    out += [f"  {u}" for u in uniq[:8]]
+    return out
+
+
+def portals() -> None:
+    """How do Morizon, Gratka and Domiporta carry their listings (search + one detail)?"""
+    from .http import Http
+
+    http = Http(delay=1.5)
+    try:
+        for name, url in PORTALS.items():
+            print(f"===== {name}: {url}")
+            try:
+                html = http.get(url).text
+            except Exception as e:  # diagnostic
+                print("  ERROR", e)
+                continue
+            lines = _page_structure(html, url)
+            print("\n".join(lines))
+            links = [ln.strip() for ln in lines if ln.startswith("  http")]
+            if links:
+                print(f"----- {name} detail: {links[0]}")
+                try:
+                    print("\n".join(_page_structure(http.get(links[0]).text, links[0])))
+                except Exception as e:  # diagnostic
+                    print("  ERROR", e)
+    finally:
+        http.close()
