@@ -156,6 +156,19 @@ Google.
 * **Checklista oglądania**: wspólna dla wszystkich osób z dostępem – dokumenty, budynek,
   mieszkanie, okolica, z notatkami do każdego punktu.
 
+## Kopia zapasowa
+
+Workflow **Backup database** co niedzielę zapisuje całą bazę (oferty, statusy, reakcje,
+komentarze, checklisty, osoby z dostępem, ustawienia) jako plik w zakładce Actions –
+przechowywany 90 dni. Repozytorium jest publiczne, więc plik jest **zaszyfrowany**:
+
+1. Dodaj sekret `BACKUP_PASSPHRASE` – długie, losowe hasło. Zapisz je w menedżerze haseł:
+   bez niego kopii nie da się odczytać. Bez tego sekretu workflow nic nie wysyła.
+2. Odtworzenie (np. po utracie projektu Supabase): pobierz plik `database-backup`
+   z ostatniego przebiegu, rozpakuj i odszyfruj
+   `gpg -d homeseeker-RRRR-MM-DD.json.gz.gpg > kopia.json.gz`, a potem na **pustej** bazie:
+   `DATABASE_URL=... homeseeker restore kopia.json.gz`.
+
 ## Preferencje
 
 Domyślne preferencje są w [`config/preferences.default.yaml`](config/preferences.default.yaml).

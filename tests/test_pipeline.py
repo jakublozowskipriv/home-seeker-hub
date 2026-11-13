@@ -219,3 +219,21 @@ def test_explain_lists_verdicts_and_reasons(store, prefs, good_listing):
     assert "2 ofert w bazie" in text
     assert "'match': 1" in text and "'rejected': 1" in text
     assert "za nisko (1. p.)" in text
+
+
+def test_backup_round_trip(store, prefs, good_listing, tmp_path):
+    from homeseeker.backup import export, restore
+    from homeseeker.db import Store, init_db, make_engine
+
+    run(store, [FakeSource([good_listing])], prefs, None)
+    path = tmp_path / "b.json.gz"
+    counts = export(store.engine, path)
+    assert counts["listings"] == 1 and counts["price_history"] == 1
+
+    fresh = make_engine("sqlite://")
+    init_db(fresh)
+    assert restore(fresh, path)["listings"] == 1
+    copy_ = Store(fresh).get(good_listing.id)
+    assert copy_.price == good_listing.price and copy_.first_seen_at is not None
+    with pytest.raises(ValueError, match="not empty"):
+        restore(fresh, path)

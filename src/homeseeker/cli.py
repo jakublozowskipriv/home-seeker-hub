@@ -188,6 +188,26 @@ def cmd_explain(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backup(args: argparse.Namespace) -> int:
+    from .backup import export
+
+    engine = make_engine()
+    init_db(engine)
+    counts = export(engine, args.file)
+    print(f"Backup written: {sum(counts.values())} rows in {len(counts)} tables")
+    return 0
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    from .backup import restore
+
+    engine = make_engine()
+    init_db(engine)
+    counts = restore(engine, args.file)
+    print(f"Restored {sum(counts.values())} rows: {counts}")
+    return 0
+
+
 def cmd_init_db(args: argparse.Namespace) -> int:
     init_db(make_engine())
     print("Database ready.")
@@ -248,6 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("explain", help="why listings matching a phrase got their verdicts")
     p.add_argument("phrase", help="estate, street or investment name, e.g. Polanka")
     p.set_defaults(func=cmd_explain)
+    p = sub.add_parser("backup", help="export the whole database to a .json.gz file")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_backup)
+    p = sub.add_parser("restore", help="load a backup into an empty database")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_restore)
     sub.add_parser("init-db", help="create tables").set_defaults(func=cmd_init_db)
     sub.add_parser("telegram-test", help="send a test message").set_defaults(func=cmd_telegram_test)
 
