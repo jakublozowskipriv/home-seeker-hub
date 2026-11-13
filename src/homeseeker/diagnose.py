@@ -477,3 +477,46 @@ def portals() -> None:
                     print("  ERROR", e)
     finally:
         http.close()
+
+
+def portals_details() -> None:
+    """Third look: full fields of one Morizon search result, its paging, and the HTML of a
+    Domiporta result card."""
+    import json
+
+    from .cli import _key_tree
+    from .http import Http
+
+    http = Http(delay=1.5)
+    try:
+        url = (
+            "https://www.morizon.pl/mieszkania/poznan/"
+            "?ps%5Bliving_area_from%5D=38&ps%5Bliving_area_to%5D=50&ps%5Bprice_to%5D=840000"
+        )
+        html = http.get(url).text
+        m = re.search(r'<script[^>]*id="__NUXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+        data = unflatten_devalue(json.loads(m.group(1)))
+        result = data["pinia"]["listing"]["result"]["searchResult"]
+        print("== morizon searchResult keys:", list(result))
+        props = result["properties"]
+        print("properties keys:", [k for k in props if k != "nodes"], "nodes:", len(props["nodes"]))
+        for k, v in props.items():
+            if k != "nodes":
+                print(" ", k, "=", json.dumps(v, ensure_ascii=False)[:300])
+        print("\n".join(_scrub(ln) for ln in _key_tree(props["nodes"][0], "node", max_depth=4)))
+        print("page links:", sorted(set(re.findall(r'href="([^"]*page=\d+[^"]*)"', html)))[:5])
+
+        html = http.get("https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan").text
+        first = re.search(r'href="(/nieruchomosci/sprzedam-mieszkanie[^"]+)"', html)
+        print(
+            "== domiporta cards:",
+            len(re.findall(r'href="/nieruchomosci/sprzedam-mieszkanie', html)),
+        )
+        if first:
+            start = max(0, first.start() - 1500)
+            card = re.sub(r"\s+", " ", html[start : first.start() + 2500])
+            print(_scrub(card))
+        print("paging:", sorted(set(re.findall(r'href="([^"]*PageNumber=\d+[^"]*)"', html)))[:6])
+        print("count text:", re.findall(r"\d[\d ]* ofert", html)[:3])
+    finally:
+        http.close()
