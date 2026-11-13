@@ -5,7 +5,7 @@ import { ListingCard } from "../components/ListingCard";
 import { useData } from "../data";
 import {
   applyFilters, DEFAULT_FILTERS, isNew, STATUS_LABELS, type Filters, type MarketFilter,
-  type SortKey,
+  type ReactionFilter, type SortKey,
   type VerdictFilter,
 } from "../format";
 import type { StatusKey } from "../api/types";
@@ -26,7 +26,7 @@ const VERDICTS: [VerdictFilter, string][] = [
 ];
 
 export function ListPage() {
-  const { grouped, statuses, reactions, commentCounts, members, lastVisit, loading, error } =
+  const { grouped, statuses, reactions, commentCounts, members, lastVisit, loading, error, me } =
     useData();
   const [filters, setFilters] = useState<Filters>(loadFilters);
   const compare = useCompare();
@@ -37,8 +37,14 @@ export function ListPage() {
     try { localStorage.setItem(FILTER_KEY, JSON.stringify(next)); } catch { /* private mode */ }
   }
 
-  const items = useMemo(() => applyFilters(grouped, filters, statuses, lastVisit),
-    [grouped, filters, statuses, lastVisit]);
+  const items = useMemo(
+    () => applyFilters(grouped, filters, statuses, lastVisit, reactions, me.email),
+    [grouped, filters, statuses, lastVisit, reactions, me.email]);
+  // Liked listings can sit in another tab (e.g. "do sprawdzenia"): say how many.
+  const elsewhere = useMemo(() => (filters.reaction === "any" || filters.verdict === "all" ? 0
+    : applyFilters(grouped, { ...filters, verdict: "all" }, statuses, lastVisit, reactions,
+                   me.email).length - items.length),
+    [grouped, filters, statuses, lastVisit, reactions, me.email, items.length]);
   const newCount = grouped.filter((g) => isNew(g.listing, lastVisit)).length;
 
   return (
@@ -72,6 +78,14 @@ export function ListPage() {
           <option value="secondary">Rynek wtórny</option>
           <option value="primary">Rynek pierwotny</option>
         </select>
+        <select value={filters.reaction}
+                onChange={(e) => update({ reaction: e.target.value as ReactionFilter })}>
+          <option value="any">Reakcje: każde</option>
+          <option value="liked">👍 Polubione</option>
+          <option value="liked_by_me">👍 Polubione przeze mnie</option>
+          <option value="disliked">👎 Na nie</option>
+          <option value="none">Bez reakcji</option>
+        </select>
         <label className="toggle">
           <input type="checkbox" checked={filters.onlyNew}
                  onChange={(e) => update({ onlyNew: e.target.checked })} />
@@ -79,7 +93,13 @@ export function ListPage() {
         </label>
       </div>
       {error && <p className="error">Nie udało się wczytać ofert: {error}</p>}
-      <p className="muted small">{loading ? "Ładuję oferty…" : `${items.length} ofert`}</p>
+      <p className="muted small">
+        {loading ? "Ładuję oferty…" : `${items.length} ofert`}
+        {elsewhere > 0 && (
+          <> · <button className="link small" onClick={() => update({ verdict: "all" })}>
+            +{elsewhere} w innych zakładkach – pokaż wszystkie</button></>
+        )}
+      </p>
       <div className="cards">
         {items.map(({ listing, duplicates }) => (
           <ListingCard key={listing.id} listing={listing} duplicates={duplicates}

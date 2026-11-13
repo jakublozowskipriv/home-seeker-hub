@@ -177,6 +177,17 @@ def cmd_diagnose(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_explain(args: argparse.Namespace) -> int:
+    from .explain import explain
+
+    engine = make_engine()
+    init_db(engine)
+    text = explain(Store(engine), args.phrase)
+    print(text)
+    _write_summary(text, None)
+    return 0
+
+
 def cmd_init_db(args: argparse.Namespace) -> int:
     init_db(make_engine())
     print("Database ready.")
@@ -234,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
         choices=["access", "otodom-pages", "otodom-investment", "events", "area"],
     )
     p.set_defaults(func=cmd_diagnose)
+    p = sub.add_parser("explain", help="why listings matching a phrase got their verdicts")
+    p.add_argument("phrase", help="estate, street or investment name, e.g. Polanka")
+    p.set_defaults(func=cmd_explain)
     sub.add_parser("init-db", help="create tables").set_defaults(func=cmd_init_db)
     sub.add_parser("telegram-test", help="send a test message").set_defaults(func=cmd_telegram_test)
 

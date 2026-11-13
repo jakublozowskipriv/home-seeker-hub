@@ -4,7 +4,7 @@ import { errorMessage } from "./api/supabase";
 import type { Listing, ListingStatus } from "./api/types";
 import {
   applyFilters, DEFAULT_FILTERS, distance, floorText, geoportalUrl, groupDuplicates, legText,
-  money, relativeTime, routeLines, shortDestination,
+  money, relativeTime, routeLines, shortDestination, type Filters,
 } from "./format";
 
 function listing(id: string, over: Partial<Listing> = {}): Listing {
@@ -68,6 +68,21 @@ describe("format", () => {
     expect(ids({ ...DEFAULT_FILTERS, onlyNew: true })).toEqual(["b"]);
     expect(ids({ ...DEFAULT_FILTERS, status: "rejected" })).toEqual(["d"]);
     expect(ids({ ...DEFAULT_FILTERS, verdict: "all", query: "wilda" })).toHaveLength(4);
+
+    const reactions = [
+      { listing_id: "a", email: "ja@x.pl", reaction: "up" as const },
+      { listing_id: "e", email: "mama@x.pl", reaction: "up" as const },
+      { listing_id: "b", email: "mama@x.pl", reaction: "down" as const },
+      { listing_id: "c", email: "ja@x.pl", reaction: "up" as const },
+    ];
+    const byReaction = (reaction: Filters["reaction"], verdict: Filters["verdict"] = "match") =>
+      applyFilters(items, { ...DEFAULT_FILTERS, reaction, verdict }, statuses,
+                   "2026-10-18T12:00:00Z", reactions, "ja@x.pl").map((g) => g.listing.id);
+    expect(byReaction("liked")).toEqual(["e", "a"]);
+    expect(byReaction("liked_by_me")).toEqual(["a"]);
+    expect(byReaction("liked_by_me", "all")).toEqual(["c", "a"]); // c is "do sprawdzenia"
+    expect(byReaction("disliked")).toEqual(["b"]);
+    expect(byReaction("none")).toEqual([]);
   });
 });
 
