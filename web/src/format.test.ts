@@ -53,6 +53,7 @@ describe("format", () => {
       listing("b", { score: 90, price: 600_000, first_seen_at: "2026-10-19T00:00:00Z" }),
       listing("c", { verdict: "review" }),
       listing("d", { score: 95 }),
+      listing("e", { score: 70, market: "primary" }),
     ]);
     const statuses = new Map<string, ListingStatus>([
       ["d", { listing_id: "d", status: "rejected", note: null, viewing_at: null,
@@ -60,11 +61,13 @@ describe("format", () => {
     ]);
     const ids = (f = DEFAULT_FILTERS) =>
       applyFilters(items, f, statuses, "2026-10-18T12:00:00Z").map((g) => g.listing.id);
-    expect(ids()).toEqual(["b", "a"]); // rejected by me is hidden, review filtered out
-    expect(ids({ ...DEFAULT_FILTERS, sort: "price" })).toEqual(["b", "a"]);
+    expect(ids()).toEqual(["b", "e", "a"]); // rejected by me is hidden, review filtered out
+    expect(ids({ ...DEFAULT_FILTERS, market: "secondary" })).toEqual(["b", "a"]);
+    expect(ids({ ...DEFAULT_FILTERS, market: "primary" })).toEqual(["e"]);
+    expect(ids({ ...DEFAULT_FILTERS, sort: "price", market: "secondary" })).toEqual(["b", "a"]);
     expect(ids({ ...DEFAULT_FILTERS, onlyNew: true })).toEqual(["b"]);
     expect(ids({ ...DEFAULT_FILTERS, status: "rejected" })).toEqual(["d"]);
-    expect(ids({ ...DEFAULT_FILTERS, verdict: "all", query: "wilda" })).toHaveLength(3);
+    expect(ids({ ...DEFAULT_FILTERS, verdict: "all", query: "wilda" })).toHaveLength(4);
   });
 });
 

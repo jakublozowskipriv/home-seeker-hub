@@ -4,7 +4,8 @@ import { useCompare } from "../compare";
 import { ListingCard } from "../components/ListingCard";
 import { useData } from "../data";
 import {
-  applyFilters, DEFAULT_FILTERS, isNew, STATUS_LABELS, type Filters, type SortKey,
+  applyFilters, DEFAULT_FILTERS, isNew, STATUS_LABELS, type Filters, type MarketFilter,
+  type SortKey,
   type VerdictFilter,
 } from "../format";
 import type { StatusKey } from "../api/types";
@@ -64,6 +65,12 @@ export function ListPage() {
           <option value="newest">Najnowsze</option>
           <option value="price">Najtańsze</option>
           <option value="price_m2">Najniższa cena za m²</option>
+        </select>
+        <select value={filters.market}
+                onChange={(e) => update({ market: e.target.value as MarketFilter })}>
+          <option value="all">Rynek: każdy</option>
+          <option value="secondary">Rynek wtórny</option>
+          <option value="primary">Rynek pierwotny</option>
         </select>
         <label className="toggle">
           <input type="checkbox" checked={filters.onlyNew}

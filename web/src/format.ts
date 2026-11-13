@@ -166,6 +166,7 @@ export function groupDuplicates(listings: Listing[]): Grouped[] {
 
 export type SortKey = "score" | "price" | "newest" | "price_m2";
 export type VerdictFilter = "match" | "review" | "negotiable" | "all";
+export type MarketFilter = "all" | "secondary" | "primary";
 
 export interface Filters {
   verdict: VerdictFilter;
@@ -173,10 +174,11 @@ export interface Filters {
   sort: SortKey;
   query: string;
   onlyNew: boolean;
+  market: MarketFilter;
 }
 
 export const DEFAULT_FILTERS: Filters = {
-  verdict: "match", status: "any", sort: "score", query: "", onlyNew: false,
+  verdict: "match", status: "any", sort: "score", query: "", onlyNew: false, market: "all",
 };
 
 export function isNew(l: Listing, lastVisit: string | null): boolean {
@@ -195,6 +197,7 @@ export function applyFilters(
     // Listings I rejected myself disappear unless I look for them explicitly.
     if (f.status === "any" && status === "rejected") return false;
     if (f.onlyNew && !isNew(l, lastVisit)) return false;
+    if (f.market !== "all" && l.market !== f.market) return false;
     if (q && !`${l.location_text ?? ""} ${l.district ?? ""} ${l.title ?? ""}`.toLowerCase()
       .includes(q)) return false;
     return true;
