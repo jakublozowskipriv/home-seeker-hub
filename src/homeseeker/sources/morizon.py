@@ -174,6 +174,8 @@ class MorizonSource(Source):
                 except (KeyError, TypeError, ValueError) as e:
                     log.warning("Morizon: skipping malformed offer %s: %s", node.get("id"), e)
             if not nodes:
+                if page < pages:
+                    self.fail(f"page {page} of {pages} is empty")
                 return
             page += 1
 

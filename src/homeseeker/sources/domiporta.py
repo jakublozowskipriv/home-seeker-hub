@@ -20,9 +20,19 @@ log = logging.getLogger(__name__)
 
 BASE = "https://www.domiporta.pl"
 SEARCH = f"{BASE}/mieszkanie/sprzedam/wielkopolskie/poznan"
-_CARD_RE = re.compile(
-    r'<article class="sneakpeak[^"]*"[^>]*data-detail-id="(\d+)"(.*?)</article>', re.S
-)
+_ARTICLE_RE = re.compile(r"<article\b([^>]*)>(.*?)</article>", re.S)
+
+
+def cards(page: str) -> list[tuple[str, str]]:
+    """(detail id, card html) of the result cards, whatever the attribute order."""
+    out = []
+    for attrs, body in _ARTICLE_RE.findall(page):
+        detail = re.search(r'data-detail-id="(\d+)"', attrs)
+        if detail and "sneakpeak" in attrs:
+            out.append((detail.group(1), body))
+    return out
+
+
 _LD_RE = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 
 
@@ -123,16 +133,22 @@ class DomiportaSource(Source):
                 return
             numbers = [int(n) for n in re.findall(r"PageNumber=(\d+)", page_html)]
             pages = max([pages, *numbers])
-            cards = _CARD_RE.findall(page_html)
-            log.info("Domiporta page %s/%s: %s cards", page, pages, len(cards))
-            for detail_id, card in cards:
+            found = cards(page_html)
+            log.info("Domiporta page %s/%s: %s cards", page, pages, len(found))
+            if not found:
+                title = re.search(r"<title>(.*?)</title>", page_html, re.S)
+                if page < pages:
+                    self.fail(
+                        f"page {page} has no result cards ({len(page_html)} bytes, title "
+                        f"{(title.group(1).strip() if title else '?')[:80]!r})"
+                    )
+                return
+            for detail_id, card in found:
                 try:
                     if listing := parse_card(detail_id, card):
                         yield listing
                 except (TypeError, ValueError) as e:
                     log.warning("Domiporta: skipping malformed card %s: %s", detail_id, e)
-            if not cards:
-                return
             page += 1
 
     def fetch_details(self, listing: Listing) -> Listing:

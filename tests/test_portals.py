@@ -113,7 +113,8 @@ CARD = """<article class="sneakpeak " data-detail-id="156923854" >
 
 
 def test_domiporta_cards_skip_developer_projects():
-    cards = domiporta._CARD_RE.findall(CARD)
+    cards = domiporta.cards(CARD)
+    assert len(cards) == 2
     listings = [x for x in (domiporta.parse_card(i, c) for i, c in cards) if x]
     assert len(listings) == 1
     listing = listings[0]
@@ -125,7 +126,7 @@ def test_domiporta_cards_skip_developer_projects():
 
 
 def test_domiporta_details_from_json_ld():
-    listing = domiporta.parse_card(*domiporta._CARD_RE.findall(CARD)[0])
+    listing = domiporta.parse_card(*domiporta.cards(CARD)[0])
     ld = {
         "@type": "Product",
         "description": "Mieszkanie z balkonem i windą, ogrzewanie miejskie.",
@@ -144,3 +145,23 @@ def test_domiporta_details_from_json_ld():
     assert (listing.floor, listing.build_year) == (0, 2025)
     assert (listing.lat, listing.lon) == (52.4118772, 16.850985)
     assert listing.has_balcony is True and listing.has_elevator is True and listing.details_fetched
+
+
+def test_domiporta_empty_page_before_the_last_marks_the_search_incomplete():
+    class FakeHttp:
+        def get(self, url):
+            class R:
+                text = (
+                    CARD + '<a href="?PageNumber=3">3</a>'
+                    if "PageNumber" not in url
+                    else "<title>Chwileczkę…</title>"
+                )
+
+            return R()
+
+    from homeseeker.preferences import load_preferences
+
+    source = domiporta.DomiportaSource(FakeHttp())
+    listings = list(source.search(load_preferences(), max_pages=10))
+    assert len(listings) == 1
+    assert source.search_complete is False and "no result cards" in source.errors[0]
