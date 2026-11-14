@@ -7,6 +7,7 @@ headers and a body snippet for each URL x client combination.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 import httpx
 
@@ -359,3 +360,151 @@ def area() -> None:
         except Exception as e:  # diagnostic
             print(f"ULDK {label} ERROR", e)
     http.close()
+
+
+PORTALS = {
+    "morizon": ("https://www.morizon.pl/mieszkania/poznan/", r"/oferta/sprzedaz-mieszkanie"),
+    "domiporta": (
+        "https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan",
+        r"domiporta\.pl/nieruchomosci/",
+    ),
+}
+_PHONE_RE = re.compile(r"\+?\d[\d \-]{7,}\d")
+INTERESTING = re.compile(
+    r"price|area|room|floor|build|year|balcon|balkon|terrace|lift|elevat|heat|ogrzew|lat|lon|"
+    r"coordinat|location|address|street|district|market|rynek|description|creat|date|photo|"
+    r"image|title|ownership|rent|czynsz|equipment|feature|extras|investment|developer",
+    re.I,
+)
+
+
+def _scrub(text: str) -> str:
+    """Logs are public: hide anything that looks like a phone number."""
+    return _PHONE_RE.sub("<num>", text)
+
+
+from .sources.common import unflatten_devalue  # noqa: E402
+
+
+def _interesting_tree(data, prefix: str, limit: int = 140) -> list[str]:
+    from .cli import _key_tree
+
+    lines = _key_tree(data, prefix, max_depth=9)
+    keep = [ln for ln in lines if INTERESTING.search(ln.split(" = ")[0].rsplit(".", 1)[-1])]
+    return [_scrub(ln) for ln in keep[:limit]]
+
+
+def _page_report(html: str, link_re: str) -> tuple[list[str], list[str]]:
+    import json
+
+    out, links = [], []
+    for attrs, body in re.findall(r"<script([^>]*)>(.*?)</script>", html, re.S | re.I):
+        if "ld+json" in attrs:
+            try:
+                data = json.loads(body)
+            except ValueError:
+                continue
+            out.append("-- ld+json")
+            out += _interesting_tree(data, "ld", 60)
+            links += re.findall(r'"(https?://[^"]+)"', body)
+        if "__NUXT_DATA__" in attrs:
+            try:
+                data = unflatten_devalue(json.loads(body))
+            except (ValueError, RecursionError) as e:
+                out.append(f"-- nuxt decode error {e}")
+                continue
+            out.append("-- nuxt data")
+            out += _interesting_tree(data, "nuxt")
+    links += re.findall(r'href="([^"#]+)"', html)
+    links = [u for u in dict.fromkeys(links) if re.search(link_re, u)]
+    out.append(f"-- listing links: {len(links)}")
+    out += [f"  {u}" for u in links[:5]]
+    return out, links
+
+
+def portals() -> None:
+    """How do Morizon (= Gratka) and Domiporta carry their listings: search + one detail."""
+    import sys
+
+    from .http import Http
+
+    sys.setrecursionlimit(10000)
+    http = Http(delay=1.5)
+    try:
+        for name, (url, link_re) in PORTALS.items():
+            print(f"===== {name}: {url}")
+            try:
+                lines, links = _page_report(http.get(url).text, link_re)
+            except Exception as e:  # diagnostic
+                print("  ERROR", e)
+                continue
+            print("\n".join(lines))
+            if links:
+                detail = links[0] if links[0].startswith("http") else url + links[0]
+                print(f"----- {name} detail: {detail}")
+                try:
+                    print("\n".join(_page_report(http.get(detail).text, link_re)[0]))
+                except Exception as e:  # diagnostic
+                    print("  ERROR", e)
+    finally:
+        http.close()
+
+
+def portals_details() -> None:
+    """Third look: full fields of one Morizon search result, its paging, and the HTML of a
+    Domiporta result card."""
+    import json
+
+    from .cli import _key_tree
+    from .http import Http
+
+    http = Http(delay=1.5)
+    try:
+        url = (
+            "https://www.morizon.pl/mieszkania/poznan/"
+            "?ps%5Bliving_area_from%5D=38&ps%5Bliving_area_to%5D=50&ps%5Bprice_to%5D=840000"
+        )
+        html = http.get(url).text
+        m = re.search(r'<script[^>]*id="__NUXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+        data = unflatten_devalue(json.loads(m.group(1)))
+        result = data["pinia"]["listing"]["result"]["searchResult"]
+        print("== morizon searchResult keys:", list(result))
+        props = result["properties"]
+        print("properties keys:", [k for k in props if k != "nodes"], "nodes:", len(props["nodes"]))
+        for k, v in props.items():
+            if k != "nodes":
+                print(" ", k, "=", json.dumps(v, ensure_ascii=False)[:300])
+        print("\n".join(_scrub(ln) for ln in _key_tree(props["nodes"][0], "node", max_depth=4)))
+        print("page links:", sorted(set(re.findall(r'href="([^"]*page=\d+[^"]*)"', html)))[:5])
+
+        from .sources import domiporta
+
+        for page in (1, 5):
+            url = domiporta.SEARCH + (f"?PageNumber={page}" if page > 1 else "")
+            html = http.get(url).text
+            found = {i for i, _ in domiporta.cards(html)}
+            links = re.findall(r'href="(/nieruchomosci/[^"]+?/(\d+))"', html)
+            ids = {i for _, i in links}
+            classes = Counter(re.findall(r'<article\b[^>]*class="([^"]*)"', html))
+            print(
+                f"== domiporta page {page}: {len(html)} bytes, cards {len(found)}, "
+                f"listing links {len(links)} ({len(ids)} ids), "
+                f"data-detail-id {len(re.findall('data-detail-id', html))}"
+            )
+            print("  article classes:", dict(classes.most_common(8)))
+            tags = re.findall(r"<article\b[^>]*>", html)
+            print(
+                "  opening tags:",
+                Counter(_scrub(re.sub(r"\d", "9", t)) for t in tags).most_common(5),
+            )
+            print(
+                "  tags with data-detail-id:",
+                Counter(re.findall(r"<(\w+)[^>]*data-detail-id", html)).most_common(5),
+            )
+            missing = [(h, i) for h, i in links if i not in found]
+            print("  links outside cards:", len(missing), [h for h, _ in missing[:3]])
+            if missing:
+                pos = html.index(missing[0][0])
+                print(_scrub(re.sub(r"\s+", " ", html[max(0, pos - 1500) : pos + 800])))
+    finally:
+        http.close()

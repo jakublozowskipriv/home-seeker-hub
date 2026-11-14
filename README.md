@@ -6,7 +6,7 @@ z ogłoszeniami, ocenia oferty według Twoich preferencji i wysyła najlepsze na
 ## Jak to działa
 
 ```
-GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX)
+GitHub Actions (co 3 h) ──► scrapery (Otodom, OLX, Morizon/Gratka, Domiporta)
                               │  normalizacja, analiza opisu (balkon, ogrzewanie, piętro…)
                               ▼
                        ocena: twarde kryteria + wynik 0–100
@@ -200,6 +200,9 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
   użytku prywatnego, robi niewiele zapytań i z przerwami – mimo to portal może je blokować.
 * Otodom i OLX odrzucają zapytania od klientów, które nie wyglądają jak przeglądarka,
   dlatego zapytania idą przez `curl_cffi` (odcisk TLS Chrome'a).
+* Morizon i Gratka to jedna firma i ta sama baza ogłoszeń – wystarczy jedno źródło
+  (Morizon). Z Domiporty pobierana jest cała lista mieszkań na sprzedaż w Poznaniu
+  (~1300 ofert, 36 stron) – odsiewa je dopiero ocena.
 * Część ofert (zwłaszcza deweloperskich) ma tylko przybliżoną lokalizację – wtedy dojazd
   nie jest liczony, a ocena opiera się na dzielnicy.
 * Dane: rozkład jazdy © ZTM Poznań (otwarte dane GTFS), sklepy © współtwórcy OpenStreetMap
@@ -215,3 +218,4 @@ homeseeker telegram-test                    # wiadomość testowa (TELEGRAM_BOT_
 - [x] Etap 3: dokładne dojazdy (GTFS ZTM), okolica (sklepy, przystanki), Geoportal, EKW
 - [x] Etap 4: dni otwarte i targi mieszkaniowe, kalendarz `.ics` (Google / Apple)
 - [x] Etap 5: kalkulator kredytu, czerwone flagi, porównywarka, checklista oglądania
+- [x] Kolejne portale: Morizon (= Gratka), Domiporta

@@ -107,7 +107,8 @@ export function redFlags(l: Listing, medians: Map<string, number>): RedFlag[] {
 }
 
 export function sourceName(source: string): string {
-  return { otodom: "Otodom", olx: "OLX" }[source] ?? source;
+  return { otodom: "Otodom", olx: "OLX", morizon: "Morizon", domiporta: "Domiporta" }[source]
+    ?? source;
 }
 
 export function googleMapsUrl(l: Listing): string | null {

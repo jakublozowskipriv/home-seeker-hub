@@ -103,6 +103,11 @@ REDACTED_KEYS = {
     "seller_id",
     "title_base64",
     "agency",
+    "email",
+    "agent",
+    "seller",
+    "advertiser",
+    "person",
 }
 
 
@@ -162,10 +167,22 @@ def cmd_probe(args: argparse.Namespace) -> int:
 
 
 def cmd_diagnose(args: argparse.Namespace) -> int:
-    from .diagnose import area, diagnose, events, otodom_investment, otodom_pagination
+    from .diagnose import (
+        area,
+        diagnose,
+        events,
+        otodom_investment,
+        otodom_pagination,
+        portals,
+        portals_details,
+    )
 
     if args.what == "area":
         area()
+    elif args.what == "portals":
+        portals()
+    elif args.what == "portals-details":
+        portals_details()
     elif args.what == "otodom-pages":
         otodom_pagination()
     elif args.what == "otodom-investment":
@@ -262,7 +279,15 @@ def main(argv: list[str] | None = None) -> int:
         "what",
         nargs="?",
         default="access",
-        choices=["access", "otodom-pages", "otodom-investment", "events", "area"],
+        choices=[
+            "access",
+            "otodom-pages",
+            "otodom-investment",
+            "events",
+            "area",
+            "portals",
+            "portals-details",
+        ],
     )
     p.set_defaults(func=cmd_diagnose)
     p = sub.add_parser("explain", help="why listings matching a phrase got their verdicts")
