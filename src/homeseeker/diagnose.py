@@ -483,7 +483,7 @@ def portals_details() -> None:
             url = domiporta.SEARCH + (f"?PageNumber={page}" if page > 1 else "")
             html = http.get(url).text
             found = {i for i, _ in domiporta.cards(html)}
-            links = re.findall(r'href="(/nieruchomosci/[^"]+?-(\d+))"', html)
+            links = re.findall(r'href="(/nieruchomosci/[^"]+?/(\d+))"', html)
             ids = {i for _, i in links}
             classes = Counter(re.findall(r'<article\b[^>]*class="([^"]*)"', html))
             print(

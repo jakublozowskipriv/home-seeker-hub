@@ -165,3 +165,10 @@ def test_domiporta_empty_page_before_the_last_marks_the_search_incomplete():
     listings = list(source.search(load_preferences(), max_pages=10))
     assert len(listings) == 1
     assert source.search_complete is False and "no result cards" in source.errors[0]
+
+
+def test_domiporta_cards_without_closing_tags():
+    unclosed = CARD.replace("</article>", "")
+    assert [i for i, _ in domiporta.cards(unclosed)] == [i for i, _ in domiporta.cards(CARD)]
+    listings = [x for x in (domiporta.parse_card(i, c) for i, c in domiporta.cards(unclosed)) if x]
+    assert len(listings) == 1 and listings[0].price

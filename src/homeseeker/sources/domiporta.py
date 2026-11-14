@@ -20,16 +20,23 @@ log = logging.getLogger(__name__)
 
 BASE = "https://www.domiporta.pl"
 SEARCH = f"{BASE}/mieszkanie/sprzedam/wielkopolskie/poznan"
-_ARTICLE_RE = re.compile(r"<article\b([^>]*)>(.*?)</article>", re.S)
+_CARD_START_RE = re.compile(r"<article\b[^>]*>")
+MAX_CARD = 20_000  # the last card on a page ends nowhere in particular
 
 
 def cards(page: str) -> list[tuple[str, str]]:
-    """(detail id, card html) of the result cards, whatever the attribute order."""
+    """(detail id, card html) of the result cards. A card runs from its opening tag to the
+    next card: Domiporta does not always close them, so </article> cannot be relied on."""
+    starts = []
+    for m in _CARD_START_RE.finditer(page):
+        detail = re.search(r'data-detail-id="(\d+)"', m.group(0))
+        if detail and "sneakpeak" in m.group(0):
+            starts.append((m.start(), m.end(), detail.group(1)))
     out = []
-    for attrs, body in _ARTICLE_RE.findall(page):
-        detail = re.search(r'data-detail-id="(\d+)"', attrs)
-        if detail and "sneakpeak" in attrs:
-            out.append((detail.group(1), body))
+    for k, (_, body_start, detail_id) in enumerate(starts):
+        end = starts[k + 1][0] if k + 1 < len(starts) else len(page)
+        body = page[body_start : min(end, body_start + MAX_CARD)]
+        out.append((detail_id, body.split("</article>")[0]))
     return out
 
 
