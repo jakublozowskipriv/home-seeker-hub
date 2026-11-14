@@ -29,14 +29,18 @@ def cards(page: str) -> list[tuple[str, str]]:
     next card: Domiporta does not always close them, so </article> cannot be relied on."""
     starts = []
     for m in _CARD_START_RE.finditer(page):
-        detail = re.search(r'data-detail-id="(\d+)"', m.group(0))
-        if detail and "sneakpeak" in m.group(0):
-            starts.append((m.start(), m.end(), detail.group(1)))
+        if "sneakpeak" in m.group(0) and "data-detail-id" in m.group(0):
+            detail = re.search(r"""data-detail-id=["']?([^"'\s>]*)""", m.group(0))
+            starts.append((m.start(), m.end(), detail.group(1) if detail else ""))
     out = []
     for k, (_, body_start, detail_id) in enumerate(starts):
         end = starts[k + 1][0] if k + 1 < len(starts) else len(page)
-        body = page[body_start : min(end, body_start + MAX_CARD)]
-        out.append((detail_id, body.split("</article>")[0]))
+        body = page[body_start : min(end, body_start + MAX_CARD)].split("</article>")[0]
+        if not detail_id.isdigit():  # the listing number is also the last part of its link
+            link = re.search(r'href="/nieruchomosci/[^"]*?/(\d+)"', body)
+            detail_id = link.group(1) if link else detail_id
+        if detail_id:
+            out.append((detail_id, body))
     return out
 
 

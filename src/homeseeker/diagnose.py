@@ -492,6 +492,11 @@ def portals_details() -> None:
                 f"data-detail-id {len(re.findall('data-detail-id', html))}"
             )
             print("  article classes:", dict(classes.most_common(8)))
+            tags = re.findall(r"<article\b[^>]*>", html)
+            print(
+                "  opening tags:",
+                Counter(_scrub(re.sub(r"\d", "9", t)) for t in tags).most_common(5),
+            )
             print(
                 "  tags with data-detail-id:",
                 Counter(re.findall(r"<(\w+)[^>]*data-detail-id", html)).most_common(5),

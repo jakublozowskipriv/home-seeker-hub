@@ -172,3 +172,8 @@ def test_domiporta_cards_without_closing_tags():
     assert [i for i, _ in domiporta.cards(unclosed)] == [i for i, _ in domiporta.cards(CARD)]
     listings = [x for x in (domiporta.parse_card(i, c) for i, c in domiporta.cards(unclosed)) if x]
     assert len(listings) == 1 and listings[0].price
+
+
+def test_domiporta_card_id_falls_back_to_the_link():
+    odd = CARD.replace('data-detail-id="156923854"', "data-detail-id='x-156923854'", 1)
+    assert domiporta.cards(odd)[0][0] == "156923854"
