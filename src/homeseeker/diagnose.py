@@ -7,6 +7,7 @@ headers and a body snippet for each URL x client combination.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 import httpx
 
@@ -476,17 +477,29 @@ def portals_details() -> None:
         print("\n".join(_scrub(ln) for ln in _key_tree(props["nodes"][0], "node", max_depth=4)))
         print("page links:", sorted(set(re.findall(r'href="([^"]*page=\d+[^"]*)"', html)))[:5])
 
-        html = http.get("https://www.domiporta.pl/mieszkanie/sprzedam/wielkopolskie/poznan").text
-        first = re.search(r'href="(/nieruchomosci/sprzedam-mieszkanie[^"]+)"', html)
-        print(
-            "== domiporta cards:",
-            len(re.findall(r'href="/nieruchomosci/sprzedam-mieszkanie', html)),
-        )
-        if first:
-            start = max(0, first.start() - 1500)
-            card = re.sub(r"\s+", " ", html[start : first.start() + 2500])
-            print(_scrub(card))
-        print("paging:", sorted(set(re.findall(r'href="([^"]*PageNumber=\d+[^"]*)"', html)))[:6])
-        print("count text:", re.findall(r"\d[\d ]* ofert", html)[:3])
+        from .sources import domiporta
+
+        for page in (1, 5):
+            url = domiporta.SEARCH + (f"?PageNumber={page}" if page > 1 else "")
+            html = http.get(url).text
+            found = {i for i, _ in domiporta.cards(html)}
+            links = re.findall(r'href="(/nieruchomosci/[^"]+?-(\d+))"', html)
+            ids = {i for _, i in links}
+            classes = Counter(re.findall(r'<article\b[^>]*class="([^"]*)"', html))
+            print(
+                f"== domiporta page {page}: {len(html)} bytes, cards {len(found)}, "
+                f"listing links {len(links)} ({len(ids)} ids), "
+                f"data-detail-id {len(re.findall('data-detail-id', html))}"
+            )
+            print("  article classes:", dict(classes.most_common(8)))
+            print(
+                "  tags with data-detail-id:",
+                Counter(re.findall(r"<(\w+)[^>]*data-detail-id", html)).most_common(5),
+            )
+            missing = [(h, i) for h, i in links if i not in found]
+            print("  links outside cards:", len(missing), [h for h, _ in missing[:3]])
+            if missing:
+                pos = html.index(missing[0][0])
+                print(_scrub(re.sub(r"\s+", " ", html[max(0, pos - 1500) : pos + 800])))
     finally:
         http.close()
